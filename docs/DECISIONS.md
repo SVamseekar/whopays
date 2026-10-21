@@ -28,6 +28,13 @@ The run used Colab's T4 (sm75, 14.6 GB) with Python 3.13.15, torch 2.11.0+cu130 
 - **GPTQModel passes.** GPTQModel 7.6.0 with `BACKEND.GPTQ_TORCH` loads `Qwen2.5-1.5B-Instruct-GPTQ-Int4` in 31 s and generates correct text on the T4, so it is usable as the FR-3 reference.
 - **kvpress still fails**, now at model load: the transformers 4.x that kvpress pulls in takes `torch_dtype`, not `dtype`. The script now uses `torch_dtype`, and runs with `USE_TF=0` so Colab's TensorFlow log noise no longer buries the traceback.
 
+**Fourth run (same day, fresh session): all 12 checks pass.**
+- kvpress 0.2.10 runs in its own venv on transformers 4.53.3. `KnormPress(0.5)` keeps 215 of 430 prompt tokens, and the next token is " bridge".
+- GPTQModel loads in 22 s with the `TorchLinear` kernel.
+- FP16 assisted generation again matches plain greedy on 10 of 10 prompts.
+
+kvpress stays a reference only (see the kvpress conflict entry); the grid uses hand-written eviction.
+
 ## 2026-10-21 — KV quantization backend: HQQ, not quanto
 `kv=quant4` uses `QuantizedCache(backend="hqq", nbits=4)`, rolled back with our patched crop. Quanto is removed from the `gpu` extra and from the lock. Reverse only if HQQ breaks under a future transformers pin and quanto ships a prebuilt sm75 kernel.
 

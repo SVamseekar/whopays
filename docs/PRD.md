@@ -397,10 +397,10 @@ The plan is 16 weeks, starting Monday 26 Oct 2026. The audit preprint lands in w
 
 ### Open questions for week 1
 
-- [ ] Does GPTQModel load and run on a Kaggle/Colab T4? It is needed only for the FR-3 reference.
-- [ ] Does transformers `QuantizedCache` (quanto or HQQ backend) work with Qwen2.5 on T4?
-- [ ] Do NVIDIA kvpress or a hand-written fixed-budget eviction work with Qwen2.5 at the pinned transformers version?
-- [ ] Are 0.5B draft and 7B target token IDs aligned? Embedding sizes differ across Qwen2.5 sizes.
+- [x] Does GPTQModel load and run on a Kaggle/Colab T4? It is needed only for the FR-3 reference. *Yes on Colab, with `BACKEND.GPTQ_TORCH` in an isolated venv (DECISIONS 2026-10-21).*
+- [x] Does transformers `QuantizedCache` (quanto or HQQ backend) work with Qwen2.5 on T4? *HQQ yes, with a patched crop for rollback; quanto no (DECISIONS 2026-10-21).*
+- [x] Do NVIDIA kvpress or a hand-written fixed-budget eviction work with Qwen2.5 at the pinned transformers version? *Hand-written yes at 5.19.0; kvpress works only in an isolated venv on transformers 4.53.3 (DECISIONS 2026-10-21).*
+- [x] Are 0.5B draft and 7B target token IDs aligned? Embedding sizes differ across Qwen2.5 sizes. *Yes: identical IDs on 20 multilingual probes for 0.5B, 1.5B, 3B and 7B.*
 - [ ] Is AWQ worth adding as a second quantizer, given T4 support?
 - [ ] Request Llama-3.2 access on Hugging Face (optional).
 - [ ] Confirm the Apache-2.0 code licence; check dataset licences before redistributing per-item outputs.
