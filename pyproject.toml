@@ -29,7 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "jupytext>=1.16", "nbformat>=5.10", "build>=1.2"]
-gpu = ["optimum-quanto>=0.2.6", "hqq>=0.2.5"]
+gpu = ["hqq>=0.2.5"]
 stats = ["scipy>=1.13", "statsmodels>=0.14", "pulp>=2.9", "matplotlib>=3.9"]
 space = ["gradio>=5.0"]
 

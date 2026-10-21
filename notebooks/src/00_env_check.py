@@ -28,13 +28,10 @@ with open("/tmp/keep-torch.txt", "w") as f:
     f.write(f"torch=={torch_version}\n")
 before = {p: md.version(p) for p in ("torch", "transformers")}
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-c", "/tmp/keep-torch.txt",
-                f"transformers=={PINNED_TRANSFORMERS}", "accelerate", "optimum-quanto", "hqq",
-                "datasets"], check=True)
-# optimum-quanto imports diffusers when it is installed, and Colab's preinstalled diffusers
-# fails to import against its torchao. Nothing here uses diffusers.
-subprocess.run([sys.executable, "-m", "pip", "uninstall", "-q", "-y", "diffusers"], check=False)
+                f"transformers=={PINNED_TRANSFORMERS}", "accelerate", "hqq", "datasets"],
+               check=True)
 print("before:", before)
-print("after: ", {p: md.version(p) for p in ("torch", "transformers", "optimum-quanto", "hqq")})
+print("after: ", {p: md.version(p) for p in ("torch", "transformers", "hqq")})
 
 # %%
 import json
@@ -132,8 +129,8 @@ def _():
 def _():
     v = {"python": sys.version.split()[0], "torch": torch.__version__,
          "cuda": torch.version.cuda, "transformers": transformers.__version__,
-         "accelerate": md.version("accelerate"), "optimum-quanto": md.version("optimum-quanto"),
-         "hqq": md.version("hqq"), "datasets": md.version("datasets")}
+         "accelerate": md.version("accelerate"), "hqq": md.version("hqq"),
+         "datasets": md.version("datasets")}
     ok = transformers.__version__ == PINNED_TRANSFORMERS
     return ("PASS" if ok else "FAIL"), v
 
@@ -205,7 +202,8 @@ def _():
     return ("PASS" if diff < 0.1 else "FAIL"), {
         "max_logit_diff": round(diff, 5), "argmax_same": bool(single.argmax() == full_logits.argmax())}
 
-for backend in ("quanto", "hqq"):
+# HQQ only: quanto's CUDA extension fails to JIT-build on Colab's T4 (see DECISIONS).
+for backend in ("hqq",):
     @check(f"quantized_cache_{backend}")
     def _(backend=backend):
         try:
@@ -415,7 +413,8 @@ torch.cuda.empty_cache()
 # %%
 @check("kvpress")
 def _():
-    return run_isolated("kvpress", ["kvpress"], f"""
+    # fire < 0.7 imports `pipes`, removed in Python 3.13; Colab preinstalls an old fire.
+    return run_isolated("kvpress", ["kvpress", "fire>=0.7"], f"""
         import json, torch, transformers, importlib.metadata as md
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from kvpress import KnormPress
@@ -443,9 +442,11 @@ def _():
 def _():
     return run_isolated("gptq", ["gptqmodel"], f"""
         import json, time, torch, importlib.metadata as md
-        from gptqmodel import GPTQModel
+        from gptqmodel import BACKEND, GPTQModel
         t0 = time.time()
-        m = GPTQModel.load("{GPTQ_CKPT}")
+        # AUTO picks Marlin, whose kernels fail to compile for sm75; the torch kernel needs
+        # no build and is enough for a reference.
+        m = GPTQModel.load("{GPTQ_CKPT}", backend=BACKEND.GPTQ_TORCH)
         tok = m.tokenizer
         ids = tok("The capital of France is", return_tensors="pt").input_ids.to(m.device)
         out = m.generate(input_ids=ids, max_new_tokens=8, do_sample=False)

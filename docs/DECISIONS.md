@@ -15,11 +15,17 @@ The run used Colab's T4 (sm75, 14.6 GB) with Python 3.13.15, torch 2.11.0+cu130 
 - All three dataset SHAs match the pins. FLORES parquet has a `sentence` column, which the loader already reads.
 
 **Broke:**
-- **Quanto backend.** optimum-quanto imports diffusers when diffusers is installed. Colab's preinstalled diffusers fails to import against its torchao (`cannot import name 'FqnToConfig'`). The env check now uninstalls diffusers. If quanto becomes the KV backend, the setup cell must do the same.
 - **Quantized-cache rollback.** `QuantizedLayer` inherits `DynamicLayer.crop`, which trims the FP16 residual buffer but leaves `cumulative_length` unchanged. `get_seq_length()` reports that counter, so after a crop the next forward builds a mask too long by the cropped count (`expanded size 436 must match 442`). Speculative decoding combined with `quant4` KV therefore needs our own rollback, which trims the residual buffer and rewinds `cumulative_length`. That rollback works only while the rejected tokens are still in the residual buffer. The env check now tests both the stock crop and this patched crop.
 - **Isolated venvs (kvpress, GPTQModel).** Colab's Python 3.13 has no ensurepip, so `python -m venv` failed. Venvs are now created with `--without-pip`, and the system pip, visible through `--system-site-packages`, installs into them.
 
-Quanto vs HQQ, kvpress and GPTQModel stay open until the re-run.
+**Second run (same day):**
+- **HQQ works.** The 4-bit cache perturbs the prefill-then-query logits (max diff 4.36, same argmax). The stock crop fails as predicted, and the patched crop is exact (diff 0.0).
+- **Quanto does not work.** optimum-quanto first failed to import because Colab's preinstalled diffusers breaks against its torchao; uninstalling diffusers got past that. Its CUDA extension then failed to JIT-build on the T4 (`quanto_cuda.so: cannot open shared object file`, after 259 s).
+- **kvpress** failed: Colab preinstalls an old `fire`, which imports `pipes`, and Python 3.13 removed `pipes`. The fix pins `fire>=0.7` in the venv.
+- **GPTQModel** failed: its AUTO backend picked Marlin, whose CUDA kernels fail to compile for sm75. The fix loads with `BACKEND.GPTQ_TORCH`, which needs no build.
+
+## 2026-10-21 — KV quantization backend: HQQ, not quanto
+`kv=quant4` uses `QuantizedCache(backend="hqq", nbits=4)`, rolled back with our patched crop. Quanto is removed from the `gpu` extra and from the lock. Reverse only if HQQ breaks under a future transformers pin and quanto ships a prebuilt sm75 kernel.
 
 ## 2026-10-21 — Task protocols: lm-eval templates, pure greedy, native-digit extraction, parallel item IDs
 **Prompts.** All three tasks use raw prompts, not chat templates, matching lm-evaluation-harness defaults so the K1 gate compares like with like. Belebele uses lm-eval's zero-shot template. MGSM uses zero-shot `mgsm_native_cot`: each language gets its own question marker and "step-by-step answer" cue, generation stops at the next question marker or EOS, and output is capped at 256 tokens.
