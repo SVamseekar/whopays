@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whopays"
+version = "0.1.0"
+description = "Per-language audit of LLM inference optimizations, and ParityQuant (worst-language mixed-precision quantization)."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Soura Vamseekar Marti" }]
+# 3.11 is the local target; Colab and Kaggle ship 3.12, so both are supported and tested in CI.
+requires-python = ">=3.11,<3.14"
+# torch is deliberately unpinned: Colab and Kaggle preinstall a CUDA build, and reinstalling it
+# costs minutes per session. The version actually used is logged in every result row.
+dependencies = [
+    "torch>=2.6",
+    "transformers>=5.14,<6",
+    "accelerate>=1.10",
+    "datasets>=4.0",
+    "huggingface_hub>=1.0",
+    "pydantic>=2.8",
+    "pyyaml>=6.0",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pyarrow>=17",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "jupytext>=1.16", "nbformat>=5.10", "build>=1.2"]
+gpu = ["optimum-quanto>=0.2.6", "hqq>=0.2.5"]
+stats = ["scipy>=1.13", "statsmodels>=0.14", "pulp>=2.9", "matplotlib>=3.9"]
+space = ["gradio>=5.0"]
+
+[project.scripts]
+whopays = "whopays.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "cuda: needs a CUDA GPU (skipped otherwise)",
+    "slow: downloads models or data",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["notebooks/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
