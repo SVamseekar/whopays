@@ -102,8 +102,10 @@ def run_isolated(name, packages, script, timeout):
                          capture_output=True, text=True, timeout=timeout)
     if pip.returncode != 0:
         raise RuntimeError("pip install failed: " + pip.stderr[-1500:])
+    # USE_TF=0: older transformers imports Colab's TensorFlow, whose log noise buries errors.
     proc = subprocess.run([f"{venv}/bin/python", "-c", textwrap.dedent(script)],
-                          capture_output=True, text=True, timeout=timeout)
+                          capture_output=True, text=True, timeout=timeout,
+                          env={**os.environ, "USE_TF": "0"})
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr[-1500:])
     return json.loads(proc.stdout.strip().splitlines()[-1])
@@ -419,7 +421,9 @@ def _():
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from kvpress import KnormPress
         tok = AutoTokenizer.from_pretrained("{SMALL}")
-        m = AutoModelForCausalLM.from_pretrained("{SMALL}", dtype=torch.float16).cuda().eval()
+        # kvpress pins transformers < 5.3; the 4.x releases it gets take torch_dtype, not dtype.
+        m = AutoModelForCausalLM.from_pretrained("{SMALL}", torch_dtype=torch.float16)
+        m = m.cuda().eval()
         ctx = tok({PASSAGE!r}, return_tensors="pt").input_ids.cuda()
         q = tok(" In the stone archive by the", return_tensors="pt").input_ids.cuda()
         press = KnormPress(compression_ratio=0.5)
@@ -450,8 +454,8 @@ def _():
         tok = m.tokenizer
         ids = tok("The capital of France is", return_tensors="pt").input_ids.to(m.device)
         out = m.generate(input_ids=ids, max_new_tokens=8, do_sample=False)
-        qlinear = next((type(x).__name__ for x in m.model.modules()
-                        if "QuantLinear" in type(x).__name__), "none found")
+        qlinear = sorted({{type(x).__name__ for x in m.model.modules()
+                          if type(x).__module__.startswith("gptqmodel")}})
         print(json.dumps({{"gptqmodel": md.version("gptqmodel"), "kernel": qlinear,
                           "load_s": round(time.time() - t0, 1),
                           "text": tok.decode(out[0, ids.shape[1]:])}}))

@@ -23,7 +23,7 @@ This is an ordered task list for Claude Code. Take the first unchecked task, fin
 - [x] `tasks/flores_nll.py`: per-token NLL on devtest.
 - [x] `tokens/premium.py`: token premium table for 11 languages on Belebele passages.
 - [x] `cli.py smoke`: 0.5B on MPS, 20 Belebele items × 2 languages, under 3 minutes on the M1.
-- [ ] Notebook `00_env_check` (built 2026-10-21; two Colab runs 2026-10-21; HQQ chosen; kvpress and GPTQModel fixes awaiting a third run). **GPU check:** the user pastes the pass/fail table; record the answers in `DECISIONS.md`.
+- [ ] Notebook `00_env_check` (built 2026-10-21; three Colab runs; HQQ chosen; GPTQModel passes; kvpress fix awaiting a fourth run). **GPU check:** the user pastes the pass/fail table; record the answers in `DECISIONS.md`.
 - [ ] Notebook `01_fp16_baselines`. **GPU check, K1 gate:** FP16 within 1 point of lm-evaluation-harness, plus measured throughput. Re-plan the compute budget if throughput is more than 2× slower than assumed.
 
 ## M1 — Replicate + probe (weeks 3–4)

@@ -24,6 +24,10 @@ The run used Colab's T4 (sm75, 14.6 GB) with Python 3.13.15, torch 2.11.0+cu130 
 - **kvpress** failed: Colab preinstalls an old `fire`, which imports `pipes`, and Python 3.13 removed `pipes`. The fix pins `fire>=0.7` in the venv.
 - **GPTQModel** failed: its AUTO backend picked Marlin, whose CUDA kernels fail to compile for sm75. The fix loads with `BACKEND.GPTQ_TORCH`, which needs no build.
 
+**Third run (same day):**
+- **GPTQModel passes.** GPTQModel 7.6.0 with `BACKEND.GPTQ_TORCH` loads `Qwen2.5-1.5B-Instruct-GPTQ-Int4` in 31 s and generates correct text on the T4, so it is usable as the FR-3 reference.
+- **kvpress still fails**, now at model load: the transformers 4.x that kvpress pulls in takes `torch_dtype`, not `dtype`. The script now uses `torch_dtype`, and runs with `USE_TF=0` so Colab's TensorFlow log noise no longer buries the traceback.
+
 ## 2026-10-21 — KV quantization backend: HQQ, not quanto
 `kv=quant4` uses `QuantizedCache(backend="hqq", nbits=4)`, rolled back with our patched crop. Quanto is removed from the `gpu` extra and from the lock. Reverse only if HQQ breaks under a future transformers pin and quanto ships a prebuilt sm75 kernel.
 
