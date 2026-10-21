@@ -19,7 +19,7 @@ Why this works better than uploading `.ipynb` files with code inside them:
 **Fallback before the repo exists, or while it's private:**
 
 - **Private repo:** use a fine-grained GitHub token stored in Colab Secrets as `GH_TOKEN`. The setup cell handles it.
-- **No GitHub at all:** run `python scripts/build_notebooks.py --bundle`, upload the `.ipynb` plus `dist/whopays-*.whl` to Colab, and `pip install` the wheel.
+- **No GitHub at all:** run `python scripts/build_notebooks.py --bundle`, upload the `.ipynb` plus `dist/whopays-*.whl` to Colab, and set `WHOPAYS_WHEEL` in the setup cell to the exact wheel path. Wheels are never picked up automatically.
 
 ## Every notebook starts with the same setup cell (generated, don't hand-edit)
 

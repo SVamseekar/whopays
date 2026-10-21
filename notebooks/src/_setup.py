@@ -7,9 +7,12 @@
 # %%
 WHOPAYS_REF = "__WHOPAYS_REF__"  # @param {type:"string"}
 MOUNT_DRIVE = False  # @param {type:"boolean"}
+# Offline only: exact path of a wheel from `build_notebooks.py --bundle`, e.g.
+# "/content/whopays-0.1.0-py3-none-any.whl". Empty = install from GitHub at WHOPAYS_REF.
+WHOPAYS_WHEEL = ""  # @param {type:"string"}
 REPO = "SVamseekar/whopays"
 
-import glob, os, subprocess, sys  # noqa: E401
+import os, subprocess, sys  # noqa: E401
 
 PLATFORM = ("colab" if "COLAB_RELEASE_TAG" in os.environ
             else "kaggle" if "KAGGLE_KERNEL_RUN_TYPE" in os.environ else "local")
@@ -44,11 +47,12 @@ for _name in ("HF_TOKEN", "GH_TOKEN"):
     if (_value := _secret(_name)):
         os.environ[_name] = _value
 
-_wheels = sorted(glob.glob("/content/whopays-*.whl") + glob.glob("/kaggle/input/**/whopays-*.whl",
-                                                                  recursive=True))
-if _wheels:  # offline fallback: `build_notebooks.py --bundle`, then upload the wheel
-    _sh(sys.executable, "-m", "pip", "install", "-q", _wheels[-1] + "[gpu]")
-    os.environ["WHOPAYS_CODE_VERSION"] = "wheel:" + os.path.basename(_wheels[-1])
+if WHOPAYS_WHEEL:  # opt-in offline fallback: exact path to a wheel you built and uploaded
+    if not (os.path.isfile(WHOPAYS_WHEEL) and os.path.basename(WHOPAYS_WHEEL).startswith("whopays-")
+            and WHOPAYS_WHEEL.endswith(".whl")):
+        raise SystemExit(f"WHOPAYS_WHEEL={WHOPAYS_WHEEL!r} is not a whopays-*.whl file")
+    _sh(sys.executable, "-m", "pip", "install", "-q", WHOPAYS_WHEEL + "[gpu]")
+    os.environ["WHOPAYS_CODE_VERSION"] = "wheel:" + os.path.basename(WHOPAYS_WHEEL)
 else:
     _src = "/content/whopays" if PLATFORM == "colab" else "/kaggle/working/whopays-src"
     if os.environ.get("GH_TOKEN"):  # private repo; keeps the token out of URLs and logs
