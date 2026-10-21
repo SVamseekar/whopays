@@ -2,6 +2,25 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-21 — Env check, first Colab T4 run: what it settled and what it broke
+The run used Colab's T4 (sm75, 14.6 GB) with Python 3.13.15, torch 2.11.0+cu130 and CUDA 13.0. The pinned transformers 5.19.0 installed over Colab's 5.20.1 without moving torch.
+
+**Settled:**
+- FP16 with SDPA generates correctly.
+- Two-pass scoring (prefill the context, then score the query) matches one forward pass: max logit difference 0.027, same argmax.
+- Manual sink-plus-recent eviction is exact at no eviction.
+- `DynamicCache.crop(-n)` rolls back exactly.
+- The 0.5B, 1.5B, 3B and 7B tokenizers give identical IDs on all 20 multilingual probe sentences, so drafting needs no token mapping.
+- On 10 prompts, FP16 assisted generation with a 0.5B draft and k=4 matched plain greedy token for token on the 1.5B target.
+- All three dataset SHAs match the pins. FLORES parquet has a `sentence` column, which the loader already reads.
+
+**Broke:**
+- **Quanto backend.** optimum-quanto imports diffusers when diffusers is installed. Colab's preinstalled diffusers fails to import against its torchao (`cannot import name 'FqnToConfig'`). The env check now uninstalls diffusers. If quanto becomes the KV backend, the setup cell must do the same.
+- **Quantized-cache rollback.** `QuantizedLayer` inherits `DynamicLayer.crop`, which trims the FP16 residual buffer but leaves `cumulative_length` unchanged. `get_seq_length()` reports that counter, so after a crop the next forward builds a mask too long by the cropped count (`expanded size 436 must match 442`). Speculative decoding combined with `quant4` KV therefore needs our own rollback, which trims the residual buffer and rewinds `cumulative_length`. That rollback works only while the rejected tokens are still in the residual buffer. The env check now tests both the stock crop and this patched crop.
+- **Isolated venvs (kvpress, GPTQModel).** Colab's Python 3.13 has no ensurepip, so `python -m venv` failed. Venvs are now created with `--without-pip`, and the system pip, visible through `--system-site-packages`, installs into them.
+
+Quanto vs HQQ, kvpress and GPTQModel stay open until the re-run.
+
 ## 2026-10-21 — Task protocols: lm-eval templates, pure greedy, native-digit extraction, parallel item IDs
 **Prompts.** All three tasks use raw prompts, not chat templates, matching lm-evaluation-harness defaults so the K1 gate compares like with like. Belebele uses lm-eval's zero-shot template. MGSM uses zero-shot `mgsm_native_cot`: each language gets its own question marker and "step-by-step answer" cue, generation stops at the next question marker or EOS, and output is capped at 256 tokens.
 

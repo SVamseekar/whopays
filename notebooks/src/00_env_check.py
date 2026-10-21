@@ -30,6 +30,9 @@ before = {p: md.version(p) for p in ("torch", "transformers")}
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-c", "/tmp/keep-torch.txt",
                 f"transformers=={PINNED_TRANSFORMERS}", "accelerate", "optimum-quanto", "hqq",
                 "datasets"], check=True)
+# optimum-quanto imports diffusers when it is installed, and Colab's preinstalled diffusers
+# fails to import against its torchao. Nothing here uses diffusers.
+subprocess.run([sys.executable, "-m", "pip", "uninstall", "-q", "-y", "diffusers"], check=False)
 print("before:", before)
 print("after: ", {p: md.version(p) for p in ("torch", "transformers", "optimum-quanto", "hqq")})
 
@@ -87,11 +90,19 @@ def check(name):
 
 
 def run_isolated(name, packages, script, timeout):
-    """pip install `packages` into a venv that sees system torch, then run `script` there."""
+    """pip install `packages` into a venv that sees system torch, then run `script` there.
+
+    Colab's Python has no ensurepip, so the venv is created without pip and the system pip
+    (visible through --system-site-packages) installs into it.
+    """
     venv = f"/tmp/venv-{name}"
-    subprocess.run([sys.executable, "-m", "venv", "--system-site-packages", venv], check=True)
-    pip = subprocess.run([f"{venv}/bin/pip", "install", "-q", "-c", "/tmp/keep-torch.txt",
-                          *packages], capture_output=True, text=True, timeout=timeout)
+    made = subprocess.run([sys.executable, "-m", "venv", "--without-pip",
+                           "--system-site-packages", venv], capture_output=True, text=True)
+    if made.returncode != 0:
+        raise RuntimeError("venv failed: " + made.stderr[-1500:])
+    pip = subprocess.run([f"{venv}/bin/python", "-m", "pip", "install", "-q",
+                          "-c", "/tmp/keep-torch.txt", *packages],
+                         capture_output=True, text=True, timeout=timeout)
     if pip.returncode != 0:
         raise RuntimeError("pip install failed: " + pip.stderr[-1500:])
     proc = subprocess.run([f"{venv}/bin/python", "-c", textwrap.dedent(script)],
@@ -164,6 +175,8 @@ def logits_after(cache):
 # ## KV cache: quantized cache, manual eviction, crop (rollback for speculative decoding)
 
 # %%
+import copy
+
 from transformers import DynamicCache
 
 
@@ -208,16 +221,31 @@ for backend in ("quanto", "hqq"):
         # cache actually perturbs the answer logits (it must, or the KV factor is a no-op).
         diff = (q_logits - full_logits).abs().max().item()
         # Rollback for speculative decoding. QuantizedLayer inherits DynamicLayer.crop, which
-        # only trims the FP16 residual buffer; here the question still sits in that buffer.
-        cache.crop(-question.shape[1])
+        # only trims the FP16 residual buffer (the question still sits there) and leaves
+        # cumulative_length, which get_seq_length reports, unchanged. So the stock crop is
+        # expected to break the next forward; the patched crop also rewinds the counter.
+        n_q = question.shape[1]
+        raw = copy.deepcopy(cache)
+        raw.crop(-n_q)
+        try:
+            with torch.no_grad():
+                small(question, past_key_values=raw, use_cache=True)
+            stock_crop = "ok"
+        except Exception as exc:
+            stock_crop = f"{type(exc).__name__}: {str(exc)[:160]}"
+        for layer in cache.layers:
+            assert layer.keys.shape[-2] >= n_q, "crop reaches into the quantized part"
+            layer.keys, layer.values = layer.keys[..., :-n_q, :], layer.values[..., :-n_q, :]
+            layer.cumulative_length -= n_q
         with torch.no_grad():
             again = small(question, past_key_values=cache, use_cache=True).logits[0, -1].float()
         crop_diff = (again - q_logits).abs().max().item()
-        return ("PASS" if diff > 0 else "FAIL"), {
+        return ("PASS" if diff > 0 and crop_diff < 1e-2 else "FAIL"), {
             "api": api, "generate_ok": generate,
             "prefill_then_query_max_logit_diff": round(diff, 4),
             "argmax_same": bool(q_logits.argmax() == full_logits.argmax()),
-            "crop_within_residual_max_diff": round(crop_diff, 5),
+            "stock_crop_then_forward": stock_crop,
+            "patched_crop_max_diff": round(crop_diff, 5),
             "prompt_tokens": ctx.shape[1]}
 
 
