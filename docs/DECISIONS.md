@@ -2,6 +2,23 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-21 — K1 gate: how ours vs lm-evaluation-harness is compared
+**Setup.** lm-eval 0.4.13 runs the K1 model (Qwen2.5-1.5B-Instruct) on `belebele_<flores>` and `mgsm_native_cot_<lang>` for all 11 languages, in FP16 with `--gen_kwargs repetition_penalty=1.0`. It is installed in its own venv, constrained to the system torch, transformers and accelerate, so its dependencies stay out of the lock. `--log_samples` gives per-item results. These are matched to our items: Belebele by link plus question number, MGSM by row position.
+
+**What is compared.**
+- Belebele: our `correct` against lm-eval `acc`.
+- MGSM: our `correct_ascii` against lm-eval `exact_match` under the `flexible-extract` filter.
+
+Our native-digit `correct` is reported but not gated, because lm-eval has no equivalent.
+
+**Gate.** For each task, the mean over languages of |ours − lm-eval| must be ≤ 1 point. Any single language over 1 point is flagged and inspected through item-level agreement. A gap made of a few FP16 near-ties, at agreement of 0.98 or above, is benign. A systematic gap is a harness bug.
+
+**Constraints.**
+- Belebele is compared on full sets only. lm-eval's `--limit` takes items in file order, while ours takes them in sorted ID order, so limited runs score different items.
+- lm-eval's request cache (`--use_cache`) is pushed to the results dataset after the run, and pulled at the start of the next session to resume.
+
+**Local plumbing check (M1, CPU, FP32; not a result).** lm-eval ran with exactly these arguments on 3 Belebele te and 3 MGSM te items with the 0.5B. `read_samples` mapped every item to our IDs. Our MGSM generations were text-identical to lm-eval's, and Belebele correctness matched item for item.
+
 ## 2026-10-21 — Env check, first Colab T4 run: what it settled and what it broke
 The run used Colab's T4 (sm75, 14.6 GB) with Python 3.13.15, torch 2.11.0+cu130 and CUDA 13.0. The pinned transformers 5.19.0 installed over Colab's 5.20.1 without moving torch.
 

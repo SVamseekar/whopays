@@ -24,7 +24,7 @@ This is an ordered task list for Claude Code. Take the first unchecked task, fin
 - [x] `tokens/premium.py`: token premium table for 11 languages on Belebele passages.
 - [x] `cli.py smoke`: 0.5B on MPS, 20 Belebele items × 2 languages, under 3 minutes on the M1.
 - [x] Notebook `00_env_check` (built 2026-10-21; 4 Colab runs; all 12 checks pass on the fourth, 2026-10-21. Answers in `DECISIONS.md`).
-- [ ] Notebook `01_fp16_baselines`. **GPU check, K1 gate:** FP16 within 1 point of lm-evaluation-harness, plus measured throughput. Re-plan the compute budget if throughput is more than 2× slower than assumed.
+- [ ] Notebook `01_fp16_baselines` (built 2026-10-21: `grids.py`, `crosscheck.py`, `throughput.py`; awaiting the Colab run). **GPU check, K1 gate:** FP16 within 1 point of lm-evaluation-harness, plus measured throughput. Re-plan the compute budget if throughput is more than 2× slower than assumed.
 
 ## M1 — Replicate + probe (weeks 3–4)
 - [ ] `quant/rtn.py` and `quant/fakequant.py`: group-wise asymmetric RTN with a per-layer bit map. Unit-test the reconstruction error bounds.

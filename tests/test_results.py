@@ -7,7 +7,15 @@ import textwrap
 import pandas as pd
 import pytest
 
-from whopays.io.results import ResultsWriter, is_done, mark_done, read_rows, repair, to_parquet
+from whopays.io.results import (
+    ITEMS,
+    ResultsWriter,
+    is_done,
+    mark_done,
+    read_rows,
+    repair,
+    to_parquet,
+)
 
 N = 237
 
@@ -115,3 +123,30 @@ def test_parquet_and_done_marker(tmp_path):
     assert not is_done(tmp_path)
     mark_done(tmp_path, len(df))
     assert is_done(tmp_path)
+
+
+def test_load_runs_tags_model_and_reads_partial_runs(tmp_path):
+    from whopays.config import RunConfig
+    from whopays.io.results import load_runs
+
+    done = RunConfig(model="m/a", task="belebele", lang="te")
+    partial = RunConfig(model="m/b", task="belebele", lang="te")
+    missing = RunConfig(model="m/c", task="belebele", lang="te")
+    for cfg, n in ((done, 3), (partial, 2)):
+        with ResultsWriter(tmp_path / cfg.run_id / ITEMS) as w:
+            for i in range(n):
+                w.write({"item_id": f"i{i}", "run_id": cfg.run_id})
+    to_parquet(tmp_path / done.run_id / ITEMS)
+    df = load_runs(tmp_path, [done, partial, missing])
+    assert df.groupby("model").size().to_dict() == {"m/a": 3, "m/b": 2}
+    assert set(df["weight"]) == {"fp16"} and set(df["kv"]) == {"full"}
+    assert load_runs(tmp_path, [missing]).empty
+
+
+def test_m0_grid_expands_to_every_language():
+    from whopays.config import load_jobs
+    from whopays.grids import m0_fp16
+
+    configs = load_jobs(m0_fp16())
+    assert len(configs) == 3 * 3 * 11
+    assert len({c.run_id for c in configs}) == len(configs)

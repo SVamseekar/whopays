@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +114,25 @@ def to_parquet(jsonl: Path, parquet: Path | None = None) -> Path:
     parquet = parquet or jsonl.with_name(PARQUET)
     pd.DataFrame.from_records(read_rows(jsonl)).to_parquet(parquet, index=False)
     return parquet
+
+
+def load_runs(root: Path, configs: Iterable[Any]) -> pd.DataFrame:
+    """Rows of the given runs, finished or partial, tagged with model, weight and kv.
+
+    Rows carry run_id, task and lang but not the model, so it comes from each RunConfig. Runs
+    with no folder yet are skipped.
+    """
+    frames = []
+    for cfg in configs:
+        run_dir = Path(root) / cfg.run_id
+        if (run_dir / PARQUET).exists():
+            df = pd.read_parquet(run_dir / PARQUET)
+        elif (run_dir / ITEMS).exists():
+            df = pd.DataFrame.from_records(read_rows(run_dir / ITEMS))
+        else:
+            continue
+        frames.append(df.assign(model=cfg.model, weight=cfg.weight, kv=cfg.kv))
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def is_done(run_dir: Path) -> bool:
