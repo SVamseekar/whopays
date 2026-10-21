@@ -2,6 +2,21 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-21 — Task protocols: lm-eval templates, pure greedy, native-digit extraction, parallel item IDs
+**Prompts.** All three tasks use raw prompts, not chat templates, matching lm-evaluation-harness defaults so the K1 gate compares like with like. Belebele uses lm-eval's zero-shot template. MGSM uses zero-shot `mgsm_native_cot`: each language gets its own question marker and "step-by-step answer" cue, generation stops at the next question marker or EOS, and output is capped at 256 tokens.
+
+**Greedy decoding.** MGSM decoding is pure greedy. Qwen2.5's `generation_config` sets `repetition_penalty=1.1` plus sampling parameters, and these would otherwise apply even with `do_sample=False`. Pure argmax is also required for the speculative-decoding exactness test. An lm-eval MGSM cross-check therefore needs `--gen_kwargs repetition_penalty=1.0`.
+
+**Answer extraction.** MGSM takes the last number in the output and reads any Unicode decimal digits. ASCII-only extraction would score a correct "১৮" as wrong and create a fake Bengali/Telugu/Thai gap. The lm-eval-style ASCII reading is stored as `correct_ascii`, and missing numbers as `extraction_failed`.
+
+**Item IDs.** Item IDs are parallel across languages, so cross-language pairing is by ID. Belebele uses a hash of the source link plus the question number; its per-language files order items differently, so items are sorted by ID and `limit` takes the same items in every language. MGSM and FLORES use row position, since they are parallel by position.
+
+**FLORES scoring.** Each sentence is scored after the model's BOS token (`<|endoftext|>` for Qwen), so its first token is predicted too. Rows store the NLL sum with token, character and byte counts, so per-token NLL or bits per byte can be derived.
+
+**FLORES source.** The source stays `facebook/flores`, pinned. It is frozen upstream in favour of `openlanguagedata/flores_plus`, but Belebele is built from FLORES-200, so both benchmarks share one text version. Reverse if a FLORES-200 error affects one of the 11 languages.
+
+**Resume caveat.** Batched generation and NLL in FP16 can shift near-tied greedy choices with padding and batch composition, so `batch_size` is logged per row. A run resumed with a different batch size is therefore not guaranteed byte-identical; with the same batch size it is.
+
 ## 2026-10-21 — KV policies act on the context; the question is scored against the compressed cache
 Belebele uses the lm-evaluation-harness template. The prompt is split at `\nQ:`. The context (`P: {passage}`) is prefilled with full-precision attention, the KV policy is then applied to its cache, and the query (`Q: … A: … D: …\nAnswer:`) is forwarded against that cache. The score is the A/B/C/D letter logits at the last position. The `full` policy uses the same two-pass path, so cells differ only by policy. Why this design:
 - In transformers 5.19, `QuantizedLayer.update` returns unquantized K/V on its first call, so quantization only affects tokens processed later (checked in the source). In a single forward pass, `quant4` would therefore be a no-op.

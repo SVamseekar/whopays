@@ -17,12 +17,12 @@ This is an ordered task list for Claude Code. Take the first unchecked task, fin
 - [x] `run.py`: `run(job_list)` loads configs, skips finished runs, dispatches to tasks and syncs results.
 
 ### Models and tasks (FR-2, FR-6, FR-9)
-- [ ] `models/loader.py`: FP16 loading only (other modes come in M1). Use `torch_dtype=float16` on CUDA, float32 on CPU and float16 on MPS.
-- [ ] `tasks/belebele.py`: prompt template, scoring with A/B/C/D letter logits, and a gold-answer logprob. Pin the dataset revision. Include a calibrated-accuracy option.
-- [ ] `tasks/mgsm.py`: greedy generation, final-number extraction, and an extraction-failure flag per item.
-- [ ] `tasks/flores_nll.py`: per-token NLL on devtest.
-- [ ] `tokens/premium.py`: token premium table for 11 languages on Belebele passages.
-- [ ] `cli.py smoke`: 0.5B on MPS, 20 Belebele items × 2 languages, under 3 minutes on the M1.
+- [x] `models/loader.py`: FP16 loading only (other modes come in M1). Use `torch_dtype=float16` on CUDA, float32 on CPU and float16 on MPS.
+- [x] `tasks/belebele.py`: prompt template, scoring with A/B/C/D letter logits, and a gold-answer logprob. Pin the dataset revision. Include a calibrated-accuracy option.
+- [x] `tasks/mgsm.py`: greedy generation, final-number extraction, and an extraction-failure flag per item.
+- [x] `tasks/flores_nll.py`: per-token NLL on devtest.
+- [x] `tokens/premium.py`: token premium table for 11 languages on Belebele passages.
+- [x] `cli.py smoke`: 0.5B on MPS, 20 Belebele items × 2 languages, under 3 minutes on the M1.
 - [ ] Notebook `00_env_check` (built 2026-10-21; awaiting the Colab run). **GPU check:** the user pastes the pass/fail table; record the answers in `DECISIONS.md`.
 - [ ] Notebook `01_fp16_baselines`. **GPU check, K1 gate:** FP16 within 1 point of lm-evaluation-harness, plus measured throughput. Re-plan the compute budget if throughput is more than 2× slower than assumed.
 

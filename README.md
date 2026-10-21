@@ -8,6 +8,8 @@ Status: harness under construction (M0). No results yet.
 uv venv --python 3.11 .venv && source .venv/bin/activate
 uv pip install -c requirements.lock -e ".[dev,stats]"
 pytest -q && ruff check src tests scripts
+WHOPAYS_SLOW=1 pytest -q -m slow           # also tests that download data
+python -m whopays.cli smoke --device mps   # 0.5B, 20 Belebele items x en/te
 python scripts/build_notebooks.py          # regenerate notebooks/*.ipynb
 python -m whopays.cli hash configs/x.yaml  # print run IDs for a job list
 ```

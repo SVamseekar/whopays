@@ -1,0 +1,118 @@
+"""Belebele reading comprehension: answer-letter scoring (FR-6).
+
+The prompt is lm-evaluation-harness's zero-shot template, so FP16 numbers are comparable at
+the K1 gate. lm-eval scores the log-likelihood of " A".." D" after "Answer:", which for
+single-token letters equals the next-token log-probabilities used here.
+
+Two-pass scoring (DECISIONS 2026-10-21): the context "P: {passage}\\n" is prefilled into a
+cache, the KV policy is applied, and the query "Q: ...\\nAnswer:" runs against that cache.
+Both segments come from one tokenization of the full prompt, so the token IDs are exactly the
+single-pass ones.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Iterator, Sequence
+
+import numpy as np
+import torch
+
+from whopays.config import RunConfig
+from whopays.kv.policies import after_prefill, new_cache
+from whopays.tasks import register
+
+LETTERS = ("A", "B", "C", "D")
+
+
+def build_prompt(item: dict) -> tuple[str, str]:
+    a, b, c, d = item["options"]
+    context = f"P: {item['passage']}\n"
+    query = f"Q: {item['question'].strip()}\nA: {a}\nB: {b}\nC: {c}\nD: {d}\nAnswer:"
+    return context, query
+
+
+def split_tokens(tokenizer, context: str, query: str) -> tuple[list[int], list[int]]:
+    """Tokenize context+query once and split at the character boundary between them."""
+    enc = tokenizer(context + query, return_offsets_mapping=True)
+    ids, offsets = enc["input_ids"], enc["offset_mapping"]
+    cut = len(context)
+    n_ctx = next((i for i, (s, e) in enumerate(offsets) if e > s and s >= cut), len(ids))
+    if any(e > cut for _, e in offsets[:n_ctx]):
+        raise ValueError("a token straddles the context/query boundary")
+    return ids[:n_ctx], ids[n_ctx:]
+
+
+def letter_token_ids(tokenizer) -> list[int]:
+    ids = [tokenizer(" " + letter, add_special_tokens=False)["input_ids"] for letter in LETTERS]
+    if any(len(i) != 1 for i in ids):
+        raise ValueError(f"answer letters are not single tokens: {ids}")
+    return [i[0] for i in ids]
+
+
+def _sync(device: str) -> None:
+    if device == "cuda":
+        torch.cuda.synchronize()
+    elif device == "mps":
+        torch.mps.synchronize()
+
+
+@torch.no_grad()
+def score_item(bundle, cfg: RunConfig, ctx_ids: list[int], q_ids: list[int],
+               letters: list[int]) -> tuple[list[float], int]:
+    """Letter log-probabilities (over the full vocabulary) and context positions kept."""
+    model, dev = bundle.model, bundle.device
+    cache = new_cache(cfg, model)
+    model(torch.tensor([ctx_ids], device=dev), past_key_values=cache, use_cache=True)
+    kept = after_prefill(cache, cfg)
+    # Original positions continue after the full context even if the policy evicted some.
+    pos = torch.arange(len(ctx_ids), len(ctx_ids) + len(q_ids), device=dev)[None]
+    out = model(torch.tensor([q_ids], device=dev), past_key_values=cache, position_ids=pos,
+                use_cache=True)
+    logprobs = out.logits[0, -1].float().log_softmax(-1)
+    return logprobs[letters].tolist(), kept
+
+
+def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -> Iterator[dict]:
+    letters = letter_token_ids(bundle.tokenizer)
+    for item in items:
+        if item["item_id"] in skip:
+            continue
+        ctx_ids, q_ids = split_tokens(bundle.tokenizer, *build_prompt(item))
+        _sync(bundle.device)
+        start = time.perf_counter()
+        lp, kept = score_item(bundle, cfg, ctx_ids, q_ids, letters)
+        _sync(bundle.device)
+        pred = int(np.argmax(lp))
+        yield {
+            "item_id": item["item_id"],
+            "gold": item["gold"],
+            "pred": pred,
+            "correct": pred == item["gold"],
+            "gold_logprob": round(lp[item["gold"]], 6),
+            "letter_logprobs": [round(x, 6) for x in lp],
+            "context_tokens": len(ctx_ids),
+            "query_tokens": len(q_ids),
+            "input_tokens": len(ctx_ids) + len(q_ids),
+            "kept_context_tokens": kept,
+            "wall_time_s": round(time.perf_counter() - start, 4),
+        }
+
+
+@register("belebele")
+def run(cfg: RunConfig, bundle, skip: set[str]) -> Iterator[dict]:
+    from whopays.datasets import belebele
+
+    items = belebele(cfg.lang)
+    yield from score_items(cfg, bundle, items[: cfg.limit] if cfg.limit else items, skip)
+
+
+def calibrated_accuracy(letter_logprobs: Sequence[Sequence[float]], gold: Sequence[int]) -> float:
+    """Accuracy after removing the run's average preference for each letter.
+
+    Subtracting each letter's mean log-probability over the run's items cancels a constant
+    A/B/C/D prior (the PRD's letter-bias risk) without extra forward passes.
+    """
+    lp = np.asarray(letter_logprobs, dtype=float)
+    pred = (lp - lp.mean(axis=0, keepdims=True)).argmax(axis=1)
+    return float((pred == np.asarray(gold)).mean())

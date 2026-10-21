@@ -1,0 +1,119 @@
+import numpy as np
+import pytest
+import torch
+
+from whopays import datasets, run
+from whopays.config import RunConfig
+from whopays.models.loader import load
+from whopays.tasks import belebele as bb
+
+ITEM = {
+    "item_id": "x-q1",
+    "passage": "The river town kept its records in a stone archive by the bridge.",
+    "question": " Where were the records kept? ",
+    "options": ["bridge", "archive", "river", "town"],
+    "gold": 1,
+}
+
+
+def items(n=6):
+    return [{**ITEM, "item_id": f"x-q{i}", "gold": i % 4} for i in range(n)]
+
+
+@pytest.fixture(scope="module")
+def bundle(tiny_model_dir):
+    cfg = RunConfig(model=str(tiny_model_dir), task="belebele", lang="en")
+    return load(cfg, device="cpu")
+
+
+def cfg_for(tiny_model_dir, **kw):
+    return RunConfig(model=str(tiny_model_dir), task="belebele", lang="te", **kw)
+
+
+def test_prompt_matches_lm_eval_template():
+    context, query = bb.build_prompt(ITEM)
+    # lm-eval: "P: {{flores_passage}}\nQ: {{question.strip()}}\nA: ...\nD: ...\nAnswer:"
+    assert context + query == (
+        "P: The river town kept its records in a stone archive by the bridge.\n"
+        "Q: Where were the records kept?\nA: bridge\nB: archive\nC: river\nD: town\nAnswer:"
+    )
+
+
+def test_split_tokens_reproduces_single_tokenization(bundle):
+    context, query = bb.build_prompt(ITEM)
+    ctx_ids, q_ids = bb.split_tokens(bundle.tokenizer, context, query)
+    assert ctx_ids + q_ids == bundle.tokenizer(context + query)["input_ids"]
+    assert ctx_ids and q_ids
+
+
+def test_split_tokens_rejects_straddling_token(bundle):
+    with pytest.raises(ValueError, match="straddles"):
+        bb.split_tokens(bundle.tokenizer, "P: x\nAns", "wer:")
+
+
+def test_two_pass_equals_single_pass(bundle, tiny_model_dir):
+    """The KV protocol must not change scores when the policy is `full` (fp32, CPU)."""
+    ctx_ids, q_ids = bb.split_tokens(bundle.tokenizer, *bb.build_prompt(ITEM))
+    letters = bb.letter_token_ids(bundle.tokenizer)
+    two_pass, kept = bb.score_item(bundle, cfg_for(tiny_model_dir), ctx_ids, q_ids, letters)
+    with torch.no_grad():
+        logits = bundle.model(torch.tensor([ctx_ids + q_ids])).logits[0, -1]
+    single = logits.float().log_softmax(-1)[letters].tolist()
+    assert kept == len(ctx_ids)
+    np.testing.assert_allclose(two_pass, single, atol=1e-5)
+
+
+def test_rows_and_skip(bundle, tiny_model_dir):
+    rows = list(bb.score_items(cfg_for(tiny_model_dir), bundle, items(), skip={"x-q2"}))
+    assert [r["item_id"] for r in rows] == ["x-q0", "x-q1", "x-q3", "x-q4", "x-q5"]
+    r = rows[0]
+    assert r["correct"] == (r["pred"] == r["gold"])
+    assert r["gold_logprob"] == r["letter_logprobs"][r["gold"]]
+    assert r["input_tokens"] == r["context_tokens"] + r["query_tokens"]
+    assert r["kept_context_tokens"] == r["context_tokens"]
+    assert all(lp <= 0 for lp in r["letter_logprobs"])
+
+
+def test_unimplemented_kv_policy_is_explicit(bundle, tiny_model_dir):
+    with pytest.raises(NotImplementedError, match="M2"):
+        list(bb.score_items(cfg_for(tiny_model_dir, kv="evict"), bundle, items(1), set()))
+
+
+def test_calibrated_accuracy_removes_letter_prior():
+    rng = np.random.default_rng(0)
+    gold = rng.integers(0, 4, 2000)
+    signal = np.eye(4)[gold] * 1.0 + rng.normal(0, 0.6, (2000, 4))
+    biased = signal + np.array([1.5, 0, 0, 0])  # planted preference for "A"
+    raw = float((biased.argmax(1) == gold).mean())
+    assert bb.calibrated_accuracy(biased, gold) > raw + 0.1
+    assert abs(bb.calibrated_accuracy(biased, gold) - bb.calibrated_accuracy(signal, gold)) < 0.02
+
+
+def test_end_to_end_through_run(tmp_path, tiny_model_dir, monkeypatch):
+    monkeypatch.setattr(datasets, "belebele", lambda lang: items(9))
+    jobs = [{"model": str(tiny_model_dir), "task": "belebele", "lang": "te", "limit": 7}]
+    [res] = run(jobs, root=tmp_path, loader=lambda c: load(c, device="cpu"), sync=False)
+    assert (res.status, res.n_items) == ("done", 7)
+
+
+@pytest.mark.slow
+def test_belebele_download_is_parallel_and_sorted():
+    en, te = datasets.belebele("en"), datasets.belebele("te")
+    assert len(en) == len(te) == 900
+    assert [i["item_id"] for i in en] == [i["item_id"] for i in te]
+    assert [i["gold"] for i in en] == [i["gold"] for i in te]
+
+
+@pytest.mark.slow
+def test_qwen_tokenizer_splits_every_item_cleanly():
+    from transformers import AutoTokenizer
+
+    from whopays.languages import CODES
+
+    tok = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct")
+    assert len(bb.letter_token_ids(tok)) == 4
+    for lang in CODES:
+        for item in datasets.belebele(lang):
+            context, query = bb.build_prompt(item)
+            ctx_ids, q_ids = bb.split_tokens(tok, context, query)
+            assert ctx_ids + q_ids == tok(context + query)["input_ids"]

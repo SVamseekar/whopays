@@ -367,8 +367,11 @@ def _():
                        ("facebook/flores", "data/language/tel_Telu/devtest-00000-of-00001.parquet")]:
         try:
             sha = api.dataset_info(repo).sha
-            hf_hub_download(repo, path, repo_type="dataset", revision=sha)
+            local = hf_hub_download(repo, path, repo_type="dataset", revision=sha)
             detail[repo] = {"ok": True, "sha": sha}
+            if local.endswith(".parquet"):
+                import pandas as pd
+                detail[repo]["columns"] = list(pd.read_parquet(local).columns)
         except Exception as exc:
             detail[repo] = {"ok": False, "error": f"{type(exc).__name__}: {str(exc)[:160]}"}
     ok = all(v["ok"] for v in detail.values())

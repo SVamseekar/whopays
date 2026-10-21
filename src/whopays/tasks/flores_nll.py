@@ -1,0 +1,77 @@
+"""Per-sentence negative log-likelihood on FLORES-200 devtest (FR-6, feeds FR-12 profiling).
+
+Each sentence is scored after one prefix token (the model's BOS, which for Qwen is
+<|endoftext|>), so every sentence token, including the first, is predicted. Rows keep the NLL
+*sum* with token, character and UTF-8 byte counts, so analysis can report per-token NLL (the
+quantity profiled) or bits per byte (comparable across languages whose tokenizers differ).
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Iterator, Sequence
+
+import torch
+
+from whopays.config import RunConfig
+from whopays.tasks import register
+
+
+def prefix_token(bundle) -> int:
+    bos = bundle.model.config.bos_token_id
+    return bos if bos is not None else bundle.tokenizer.eos_token_id
+
+
+@torch.no_grad()
+def nll_batch(bundle, texts: Sequence[str]) -> list[tuple[float, int]]:
+    """(sum of token NLL in nats, number of scored tokens) per text, right-padded batch."""
+    tok, model, dev = bundle.tokenizer, bundle.model, bundle.device
+    prefix = prefix_token(bundle)
+    seqs = [[prefix, *tok(t, add_special_tokens=False)["input_ids"]] for t in texts]
+    width = max(map(len, seqs))
+    pad = tok.pad_token_id if tok.pad_token_id is not None else prefix
+    ids = torch.full((len(seqs), width), pad, dtype=torch.long)
+    mask = torch.zeros_like(ids)
+    for i, s in enumerate(seqs):
+        ids[i, : len(s)] = torch.tensor(s)
+        mask[i, : len(s)] = 1
+    ids, mask = ids.to(dev), mask.to(dev)
+    logits = model(input_ids=ids, attention_mask=mask).logits[:, :-1].float()
+    targets = ids[:, 1:]
+    nll = torch.nn.functional.cross_entropy(logits.transpose(1, 2), targets, reduction="none")
+    nll = nll * mask[:, 1:]
+    return [(float(nll[i].sum()), len(s) - 1) for i, s in enumerate(seqs)]
+
+
+def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -> Iterator[dict]:
+    if cfg.kv != "full" or cfg.spec:
+        raise ValueError("flores_nll measures weights only; use kv='full' and spec=False")
+    todo = [it for it in items if it["item_id"] not in skip]
+    for start in range(0, len(todo), cfg.batch_size):
+        batch = todo[start : start + cfg.batch_size]
+        if bundle.device == "cuda":
+            torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        scores = nll_batch(bundle, [it["text"] for it in batch])
+        if bundle.device == "cuda":
+            torch.cuda.synchronize()
+        per_item = (time.perf_counter() - t0) / len(batch)
+        for item, (nll_sum, n_tokens) in zip(batch, scores, strict=True):
+            yield {
+                "item_id": item["item_id"],
+                "nll_sum": round(nll_sum, 5),
+                "n_tokens": n_tokens,
+                "nll_per_token": round(nll_sum / n_tokens, 6),
+                "n_chars": len(item["text"]),
+                "n_bytes": len(item["text"].encode("utf-8")),
+                "batch_size": cfg.batch_size,
+                "wall_time_s": round(per_item, 4),
+            }
+
+
+@register("flores_nll")
+def run(cfg: RunConfig, bundle, skip: set[str]) -> Iterator[dict]:
+    from whopays.datasets import flores
+
+    items = flores(cfg.lang, "devtest")
+    yield from score_items(cfg, bundle, items[: cfg.limit] if cfg.limit else items, skip)
