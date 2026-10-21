@@ -21,6 +21,43 @@ Why this works better than uploading `.ipynb` files with code inside them:
 - **Private repo:** use a fine-grained GitHub token stored in Colab Secrets as `GH_TOKEN`. The setup cell handles it.
 - **No GitHub at all:** run `python scripts/build_notebooks.py --bundle`, upload the `.ipynb` plus `dist/whopays-*.whl` to Colab, and set `WHOPAYS_WHEEL` in the setup cell to the exact wheel path. Wheels are never picked up automatically.
 
+## Step by step: running a notebook on Colab
+
+### A. One-time setup (do once; every later notebook reuses it)
+
+**1. Hugging Face token (Write).** Results are saved to the private dataset `Heavy-Dervish1205/whopays-results`, which needs write access.
+1. Sign in to https://huggingface.co as Heavy-Dervish1205.
+2. Open https://huggingface.co/settings/tokens. If an existing token shows a **WRITE** badge, you can reuse it.
+3. Otherwise, click **+ Create new token**, choose the **Write** tab, name it `colab-whopays` and click **Create token**.
+4. Copy the value (`hf_...`). It is shown only once.
+5. FLORES is gated. Open https://huggingface.co/datasets/facebook/flores and click **Agree and access repository**. Skip this if you already did it for `00_env_check`.
+
+**2. GitHub token (read-only, this repo only).** The repo is private, so the setup cell needs a token to download the code.
+1. Open https://github.com/settings/personal-access-tokens/new. This is the "Fine-grained token" page.
+2. **Token name:** `colab-whopays`. **Expiration:** 90 days, or whatever you prefer.
+3. **Repository access:** select **Only select repositories**, then pick `SVamseekar/whopays`.
+4. **Permissions → Repository permissions → Contents:** set it to **Read-only**. Metadata becomes read-only automatically. Leave everything else at "No access".
+5. Click **Generate token** and copy the value (`github_pat_...`).
+
+**3. Store both tokens in Colab.** Colab secrets belong to your Google account, so this is also a one-time step.
+1. Open any notebook at https://colab.research.google.com.
+2. Click the **key icon (Secrets)** in the left sidebar.
+3. Click **+ Add new secret**, set the name to `HF_TOKEN` and paste the HF token as the value.
+4. Do the same again with the name `GH_TOKEN` and the GitHub token.
+5. Turn on the **Notebook access** toggle for both.
+
+Never paste a token into a notebook cell.
+
+### B. Each run
+
+1. **Open the notebook from GitHub.** Use `https://colab.research.google.com/github/SVamseekar/whopays/blob/main/notebooks/<name>.ipynb`. If Colab can't see the private repo, go to **File → Open notebook → GitHub**, tick **Include private repos**, authorize, and pick the notebook.
+2. **Select the GPU.** Go to **Runtime → Change runtime type → Hardware accelerator: T4 GPU → Save**.
+3. **Run it.** Go to **Runtime → Run all**. If Colab asks "Grant access to HF_TOKEN / GH_TOKEN?", click **Grant access**.
+4. **Check the first cell's output.** It should print `platform: colab | GPU: Tesla T4` and then a version table. If it says "No CUDA GPU attached", redo step 2.
+5. **Keep the tab open and the laptop awake.** Free Colab can end a session whose tab is closed. Long cells print a line per finished job; some steps, such as lm-eval, stay quiet for a long time while they work.
+6. **If the session dies:** reopen it and do **Runtime → Run all** again. Finished jobs are skipped and resumed from the results dataset.
+7. **When it finishes:** go to **File → Download → Download .ipynb**. The file lands in `~/Downloads`. Tell Claude Code; it reads the outputs and errors from there.
+
 ## Every notebook starts with the same setup cell (generated, don't hand-edit)
 
 1. Detect the platform: Colab, Kaggle or local.
