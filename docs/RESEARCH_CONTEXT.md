@@ -31,6 +31,8 @@ Read this before writing anything that claims novelty: README, paper or comments
 
 Search arXiv for "worst-group" OR "minimax" mixed-precision quantization, and for multilingual compression fairness. Run the search again at M3 and M4. If something close appears, apply kill criterion K4 (PRD).
 
+- **21 Oct 2026:** searches for per-language or multilingual evaluation of KV-cache compression (eviction or quantization) found none. Benchmarks such as kvpress/RULER, SCBench and LongBench-based studies are English or long-context only. Keep checking: this underpins the KV channel of claim 1.
+
 ## Target venues
 
 - **Audit:** ACL/EMNLP (main or Findings), or FAccT.

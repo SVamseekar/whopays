@@ -181,6 +181,17 @@ def make_quantized_cache(backend):
 
 full_logits = logits_after(DynamicCache())
 
+
+@check("two_pass_vs_single_pass")
+def _():
+    # The KV protocol scores the question against a prefilled context cache. With the full
+    # cache this must match one forward over context + question up to FP16 noise.
+    with torch.no_grad():
+        single = small(torch.cat([ctx, question], dim=1)).logits[0, -1].float()
+    diff = (single - full_logits).abs().max().item()
+    return ("PASS" if diff < 0.1 else "FAIL"), {
+        "max_logit_diff": round(diff, 5), "argmax_same": bool(single.argmax() == full_logits.argmax())}
+
 for backend in ("quanto", "hqq"):
     @check(f"quantized_cache_{backend}")
     def _(backend=backend):
@@ -196,14 +207,18 @@ for backend in ("quanto", "hqq"):
         # Belebele scores in one pass; this shows whether a prefilled-then-queried quantized
         # cache actually perturbs the answer logits (it must, or the KV factor is a no-op).
         diff = (q_logits - full_logits).abs().max().item()
-        crop = hasattr(cache, "crop")
-        if crop:
-            cache.crop(ctx.shape[1])
+        # Rollback for speculative decoding. QuantizedLayer inherits DynamicLayer.crop, which
+        # only trims the FP16 residual buffer; here the question still sits in that buffer.
+        cache.crop(-question.shape[1])
+        with torch.no_grad():
+            again = small(question, past_key_values=cache, use_cache=True).logits[0, -1].float()
+        crop_diff = (again - q_logits).abs().max().item()
         return ("PASS" if diff > 0 else "FAIL"), {
             "api": api, "generate_ok": generate,
             "prefill_then_query_max_logit_diff": round(diff, 4),
             "argmax_same": bool(q_logits.argmax() == full_logits.argmax()),
-            "crop_supported": crop, "prompt_tokens": ctx.shape[1]}
+            "crop_within_residual_max_diff": round(crop_diff, 5),
+            "prompt_tokens": ctx.shape[1]}
 
 
 def evicted(budget, sink=4):
@@ -248,7 +263,7 @@ def _():
         small(ctx, past_key_values=cache, use_cache=True)
         n = cache.get_seq_length()
         small(question, past_key_values=cache, use_cache=True)
-        cache.crop(n)
+        cache.crop(-question.shape[1])  # 5.x API: negative = tokens to remove
         again = small(question, past_key_values=cache, use_cache=True).logits[0, -1].float()
     return {"length_after_crop": n, "max_diff_vs_uncropped": round(
         (again - full_logits).abs().max().item(), 5)}

@@ -17,7 +17,7 @@ from whopays.env import get_secret
 
 log = logging.getLogger(__name__)
 
-DEFAULT_REPO = "SVamseekar/whopays-results"
+DEFAULT_REPO = "Heavy-Dervish1205/whopays-results"
 
 
 def repo_id() -> str:

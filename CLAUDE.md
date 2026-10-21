@@ -11,7 +11,7 @@ This is a research codebase with two parts.
 
 The full spec is `docs/PRD.md`. Research context and novelty boundaries are in `docs/RESEARCH_CONTEXT.md`. Decisions already made are in `docs/DECISIONS.md`; don't relitigate them without saying so.
 
-Owner: Soura Vamseekar Marti (GitHub: SVamseekar). He prefers brief, direct communication and expects you to make technical calls and flag gaps proactively.
+Owner: Soura Vamseekar Marti (GitHub: SVamseekar; Hugging Face: Heavy-Dervish1205). He prefers brief, direct communication and expects you to make technical calls and flag gaps proactively.
 
 ## Where code runs
 

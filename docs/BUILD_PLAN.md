@@ -13,7 +13,7 @@ This is an ordered task list for Claude Code. Take the first unchecked task, fin
 ### Config and results (FR-1, FR-7, FR-8)
 - [x] `config.py`: a pydantic (or dataclass) `RunConfig` and `stable_hash()` over canonical JSON. Test that hashes are identical across key order and float formatting.
 - [x] `io/results.py`: JSONL writer that flushes every 50 items, `done_ids()` for resume, and `to_parquet()`. Test: kill mid-run, resume, and check the final file is byte-identical to an uninterrupted run.
-- [x] `io/hub_sync.py`: push and pull a run folder to a private HF dataset `SVamseekar/whopays-results`, with a no-op when there is no token.
+- [x] `io/hub_sync.py`: push and pull a run folder to a private HF dataset `Heavy-Dervish1205/whopays-results`, with a no-op when there is no token.
 - [x] `run.py`: `run(job_list)` loads configs, skips finished runs, dispatches to tasks and syncs results.
 
 ### Models and tasks (FR-2, FR-6, FR-9)

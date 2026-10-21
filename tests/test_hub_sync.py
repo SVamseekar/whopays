@@ -33,7 +33,7 @@ def test_push_uploads_folder_under_run_id(tmp_path, monkeypatch):
         assert hub_sync.push_run(run_dir) is True
     client = api.return_value
     client.create_repo.assert_called_once_with(
-        "SVamseekar/whopays-results", repo_type="dataset", private=True, exist_ok=True
+        "Heavy-Dervish1205/whopays-results", repo_type="dataset", private=True, exist_ok=True
     )
     kwargs = client.upload_folder.call_args.kwargs
     assert kwargs["path_in_repo"] == "abc123def456"
