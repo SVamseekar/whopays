@@ -2,6 +2,16 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-31 — Dated technical map with a readable interview reference
+Create an explanatory poster and companion interview guide from the specification, current
+code and latest user-shared Colab log. Separate CPU implementation checks, partial GPU job
+completion, pending gates and proposed research contributions; do not draw invented result
+charts. The guide carries exact equations and limitations, including the compressed-cache
+sequential control, descriptive Oaxaca, incomplete H2 inference and allocation-budget
+semantics. The poster is a snapshot, not live monitoring or an experiment figure. Update
+its evidence labels only after reviewing new logs; keep the generation and correction
+briefs with the artifact so the visual can be regenerated.
+
 ## 2026-10-31 — Check both PyTorch media companions in one text-runtime repair
 After torchvision removal, the next Colab attempt reached torchaudio and failed because
 its CUDA build was 13.0 while PyTorch reported 13.2. Both are optional for the text tasks.

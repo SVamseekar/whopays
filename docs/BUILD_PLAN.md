@@ -41,6 +41,9 @@ first unfinished research task; no downstream experiment is authorized by a pass
   - After removing torchvision, model import reached torchaudio and failed on a CUDA
     build mismatch (torch 13.2 versus torchaudio 13.0). Extend the probe to both optional
     companions together. K1 score agreement and throughput remain untested.
+  - Latest shared log after the repair: weights loaded, English/German/French/Spanish
+    Belebele jobs each completed 900 items, then Russian loaded. Baseline execution is
+    progressing; full-run completion, accuracy and K1 verdicts have not been shared.
 
 ## M1 — Replicate + probe (weeks 3–4)
 - [x] `quant/rtn.py` and `quant/fakequant.py`: group-wise asymmetric RTN with a per-layer bit map. Unit-test the reconstruction error bounds. CPU verified 2026-10-31.

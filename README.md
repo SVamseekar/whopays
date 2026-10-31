@@ -21,6 +21,8 @@ python -m whopays.cli hash configs/x.yaml  # print run IDs for a job list
 - Build order: `docs/BUILD_PLAN.md`
 - Decisions: `docs/DECISIONS.md`
 - Running on Colab / Kaggle: `docs/NOTEBOOKS.md`
+- Technical project map: [PNG](docs/figures/whopays-technical-map-2026-10-31.png)
+- Architecture, formulas and interview questions: [interview guide](docs/INTERVIEW_GUIDE.md)
 - Instructions for Claude Code: `CLAUDE.md`
 
 Licence: Apache-2.0 (code).
