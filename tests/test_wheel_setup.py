@@ -13,14 +13,16 @@ from whopays import env
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def execute_setup(monkeypatch, tmp_path, *, include_lock=True, changed_loaded_build=False):
+def execute_setup(monkeypatch, tmp_path, *, include_lock=True, changed_loaded_build=False,
+                  path_form='{path}'):
     wheel = tmp_path / 'whopays-0.1.0-py3-none-any.whl'
     with zipfile.ZipFile(wheel, 'w') as archive:
         if include_lock:
             archive.writestr('whopays-0.1.0.data/data/share/whopays/requirements.lock',
                              'transformers==5.19.0\nnumpy==2.0.0\npandas==2.2.0\n')
     source = (ROOT / 'notebooks/src/_setup.py').read_text()
-    source = source.replace('WHOPAYS_WHEEL = ""', f'WHOPAYS_WHEEL = {str(wheel)!r}')
+    value = path_form.format(path=wheel)
+    source = source.replace('WHOPAYS_WHEEL = ""', f'WHOPAYS_WHEEL = {value!r}')
     source = source.replace('/tmp/whopays-constraints.txt', str(tmp_path / 'constraints.txt'))
     calls = []
 
@@ -68,3 +70,10 @@ def test_same_version_wheel_is_reinstalled_without_forcing_dependency_reinstalls
 def test_changed_build_requires_restart_if_package_is_already_imported(monkeypatch, tmp_path):
     with pytest.raises(SystemExit, match='[Rr]estart'):
         execute_setup(monkeypatch, tmp_path, changed_loaded_build=True)
+
+
+@pytest.mark.parametrize('path_form', ['"{path}"', "'{path}'", '  "{path}"  '])
+def test_colab_form_tolerates_pasted_quotes(monkeypatch, tmp_path, path_form):
+    wheel, calls = execute_setup(monkeypatch, tmp_path, path_form=path_form)
+    reinstall = next(args for args in calls if '--force-reinstall' in args)
+    assert reinstall[-1] == str(wheel)

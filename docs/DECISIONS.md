@@ -2,6 +2,16 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-31 — Accept quoted wheel paths pasted into Colab forms
+The next Colab T4 setup attempt received literal double quotes around the wheel path and
+stopped before package installation or evaluation; this does not test or fail K1. Strip
+outer whitespace and one matching pair of path quotes before validation, and show an
+unquoted form example. Regression tests exercise quoted form values through the actual
+setup code. The existing uploaded wheel remains usable after correcting the form; this
+change is in notebook bootstrap only. The absent HF token must be supplied through secrets
+for gated FLORES access and remote result recovery. Keep strict file/extension validation;
+reverse quote normalization only if literal surrounding quotes become meaningful filenames.
+
 ## 2026-10-31 — Offline wheels carry the lock and use content identity
 Include `requirements.lock` in built wheels, enforce those constraints in the upload setup
 while preserving the platform scientific base as in the Git install, and log the wheel's

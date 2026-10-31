@@ -8,11 +8,18 @@
 WHOPAYS_REF = "__WHOPAYS_REF__"  # @param {type:"string"}
 MOUNT_DRIVE = False  # @param {type:"boolean"}
 # Offline only: exact path of a wheel from `build_notebooks.py --bundle`, e.g.
-# "/content/whopays-0.1.0-py3-none-any.whl". Empty = install from GitHub at WHOPAYS_REF.
+# /content/whopays-0.1.0-py3-none-any.whl (no quotes in the form).
+# Empty = install from GitHub at WHOPAYS_REF.
 WHOPAYS_WHEEL = ""  # @param {type:"string"}
 REPO = "SVamseekar/whopays"
 
 import os, subprocess, sys  # noqa: E401
+
+# Colab string fields can preserve quotation marks pasted with a Python path literal.
+WHOPAYS_WHEEL = WHOPAYS_WHEEL.strip()
+if (len(WHOPAYS_WHEEL) >= 2 and WHOPAYS_WHEEL[0] in "\"'"
+        and WHOPAYS_WHEEL[-1] == WHOPAYS_WHEEL[0]):
+    WHOPAYS_WHEEL = WHOPAYS_WHEEL[1:-1]
 
 PLATFORM = ("colab" if "COLAB_RELEASE_TAG" in os.environ
             else "kaggle" if "KAGGLE_KERNEL_RUN_TYPE" in os.environ else "local")

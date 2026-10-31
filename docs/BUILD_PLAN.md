@@ -32,6 +32,9 @@ first unfinished research task; no downstream experiment is authorized by a pass
 - [ ] Notebook `01_fp16_baselines` (built 2026-10-21: `grids.py`, `crosscheck.py`, `throughput.py`; awaiting the Colab run). **GPU check, K1 gate:** FP16 within 1 point of lm-evaluation-harness, plus measured throughput. Re-plan the compute budget if throughput is more than 2× slower than assumed.
   - [x] CPU reliability follow-up: stop on baseline errors, checkpoint consistent live
     lm-eval SQLite caches, compare the unrounded throughput ratio; regenerate notebook 01.
+  - Latest Colab T4 attempt stopped in setup because the wheel form value contained
+    literal quotes; tolerate pasted quotes and clarify the form hint. No K1 scores were
+    produced, so the gate remains untested. `HF_TOKEN` was also absent in that attempt.
 
 ## M1 — Replicate + probe (weeks 3–4)
 - [x] `quant/rtn.py` and `quant/fakequant.py`: group-wise asymmetric RTN with a per-layer bit map. Unit-test the reconstruction error bounds. CPU verified 2026-10-31.
