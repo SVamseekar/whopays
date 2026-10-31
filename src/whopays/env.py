@@ -73,27 +73,32 @@ def results_root() -> Path:
 
 
 def prepare_text_runtime() -> bool:
-    """Remove a broken optional torchvision from an explicitly prepared text-only runtime.
+    """Remove broken optional vision/audio packages from a prepared text-only runtime.
 
     Notebook setup calls this after installing dependencies and before importing
     Transformers. Probe in a child process to keep failed native imports out of the
-    notebook kernel. Healthy/absent torchvision and the platform torch are preserved.
-    Returns whether torchvision was removed; previously loaded imports need a restart.
+    notebook kernel. Healthy/absent companions and the platform torch are preserved.
+    Check both companions before repairing so one restart suffices for both failures.
+    Returns whether packages were removed; previously loaded imports need a restart.
     """
-    try:
-        metadata.version("torchvision")
-    except metadata.PackageNotFoundError:
+    broken = []
+    for package in ("torchvision", "torchaudio"):
+        try:
+            metadata.version(package)
+        except metadata.PackageNotFoundError:
+            continue
+        probe = subprocess.run([sys.executable, "-c", f"import {package}"],
+                               capture_output=True, text=True, timeout=60)
+        if probe.returncode != 0:
+            broken.append(package)
+    if not broken:
         return False
-    probe = subprocess.run([sys.executable, "-c", "import torchvision"],
-                           capture_output=True, text=True, timeout=60)
-    if probe.returncode == 0:
-        return False
-    log.warning("torchvision failed its import check; removing this optional vision package "
-                "for WhoPays text-only evaluation (keeping the platform torch)")
-    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "torchvision"],
+    log.warning("Removing optional packages that failed import checks: %s "
+                "(WhoPays is text-only; keeping the platform torch)", ", ".join(broken))
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", *broken],
                    capture_output=True, text=True, check=True)
-    if "transformers" in sys.modules or "torchvision" in sys.modules:
-        raise RuntimeError("Removed broken torchvision. Restart the Colab/Kaggle session, "
+    if "transformers" in sys.modules or any(name in sys.modules for name in broken):
+        raise RuntimeError("Removed broken optional packages. Restart the Colab/Kaggle session, "
                            "then Run all so Transformers detects the repaired environment.")
     return True
 

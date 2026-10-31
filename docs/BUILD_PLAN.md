@@ -38,6 +38,9 @@ first unfinished research task; no downstream experiment is authorized by a pass
   - Subsequent attempt reached model loading, then failed on `torchvision::nms` in an
     optional vision import. No baseline items were scored. Add a text-runtime import
     probe/removal for broken torchvision; retry K1 after restarting the Colab session.
+  - After removing torchvision, model import reached torchaudio and failed on a CUDA
+    build mismatch (torch 13.2 versus torchaudio 13.0). Extend the probe to both optional
+    companions together. K1 score agreement and throughput remain untested.
 
 ## M1 — Replicate + probe (weeks 3–4)
 - [x] `quant/rtn.py` and `quant/fakequant.py`: group-wise asymmetric RTN with a per-layer bit map. Unit-test the reconstruction error bounds. CPU verified 2026-10-31.

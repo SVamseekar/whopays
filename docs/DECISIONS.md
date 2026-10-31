@@ -2,6 +2,16 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-31 — Check both PyTorch media companions in one text-runtime repair
+After torchvision removal, the next Colab attempt reached torchaudio and failed because
+its CUDA build was 13.0 while PyTorch reported 13.2. Both are optional for the text tasks.
+Extend the existing subprocess preflight to check torchvision and torchaudio before any
+removal, uninstall only failed companions together, and preserve healthy companions and
+the platform torch. This avoids serial vision/audio failures and repeated restarts. The
+existing uploaded notebook can use `%pip uninstall -y torchvision torchaudio`, then a
+session restart and Run all with the same wheel. No scores were produced; K1 remains
+untested. Revisit if a task starts using audio or vision, requiring compatible builds.
+
 ## 2026-10-31 — Repair broken optional torchvision before text model imports
 The subsequent Colab T4 baseline attempt failed before scoring: Qwen2's import reached
 torchvision, whose registration raised `operator torchvision::nms does not exist`. The

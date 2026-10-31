@@ -90,12 +90,13 @@ Never paste a token into a notebook cell.
 
 ## Colab rules
 
-If model import fails with `operator torchvision::nms does not exist`, the optional vision
-package is broken in that runtime. For an existing uploaded notebook, run
-`%pip uninstall -y torchvision` in a code cell, restart the session (not disconnect/delete),
-and Run all again with the same wheel. Current setup probes this import in a subprocess
-and removes a broken torchvision automatically before Transformers is loaded. Healthy
-torchvision and the platform CUDA torch are preserved. The `No files matched allow_patterns`
+If model import fails with `operator torchvision::nms does not exist` or a torchaudio CUDA
+version mismatch, an optional media package is broken in that runtime. For an existing
+uploaded notebook, run `%pip uninstall -y torchvision torchaudio` in a code cell, restart
+the session (not disconnect/delete), and Run all again with the same wheel. Current setup
+probes both imports in subprocesses and removes failed companions together before
+Transformers is loaded. Healthy companions and the platform CUDA torch are preserved.
+The `No files matched allow_patterns`
 message by itself only means that the requested run has no remote checkpoint yet.
 
 - **Runtime:** T4 GPU. Never TPU, because the code is PyTorch + CUDA.
