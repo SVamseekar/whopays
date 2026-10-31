@@ -46,9 +46,11 @@ def nll_batch(bundle, texts: Sequence[str]) -> list[tuple[float, int]]:
 def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -> Iterator[dict]:
     if cfg.kv != "full" or cfg.spec:
         raise ValueError("flores_nll measures weights only; use kv='full' and spec=False")
-    todo = [it for it in items if it["item_id"] not in skip]
-    for start in range(0, len(todo), cfg.batch_size):
-        batch = todo[start : start + cfg.batch_size]
+    # Keep original padding and batch composition when resuming a partial batch.
+    for start in range(0, len(items), cfg.batch_size):
+        batch = items[start : start + cfg.batch_size]
+        if all(it["item_id"] in skip for it in batch):
+            continue
         if bundle.device == "cuda":
             torch.cuda.synchronize()
         t0 = time.perf_counter()
@@ -57,6 +59,8 @@ def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -
             torch.cuda.synchronize()
         per_item = (time.perf_counter() - t0) / len(batch)
         for item, (nll_sum, n_tokens) in zip(batch, scores, strict=True):
+            if item["item_id"] in skip:
+                continue
             yield {
                 "item_id": item["item_id"],
                 "nll_sum": round(nll_sum, 5),

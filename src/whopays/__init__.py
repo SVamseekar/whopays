@@ -2,9 +2,6 @@
 
 __version__ = "0.1.0"
 
-
-def run(jobs, **kwargs):
-    """Run a job list. See `whopays.run.run`; imported lazily so `import whopays` stays cheap."""
-    from whopays.run import run as _run
-
-    return _run(jobs, **kwargs)
+# Import once: a lazy wrapper gets overwritten by Python's same-named submodule,
+# making whopays.run(...) depend on import order.
+from whopays.run import run as run  # noqa: E402

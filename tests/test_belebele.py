@@ -74,9 +74,15 @@ def test_rows_and_skip(bundle, tiny_model_dir):
     assert all(lp <= 0 for lp in r["letter_logprobs"])
 
 
-def test_unimplemented_kv_policy_is_explicit(bundle, tiny_model_dir):
-    with pytest.raises(NotImplementedError, match="M2"):
-        list(bb.score_items(cfg_for(tiny_model_dir, kv="evict"), bundle, items(1), set()))
+@pytest.mark.parametrize("budget", [6, 256])
+def test_eviction_policy_retains_context_budget(bundle, tiny_model_dir, budget):
+    [row] = bb.score_items(cfg_for(tiny_model_dir, kv="evict", kv_budget=budget),
+                           bundle, items(1), set())
+    assert row["kept_context_tokens"] == min(budget, row["context_tokens"])
+    assert np.isfinite(row["letter_logprobs"]).all()
+    if budget >= row["context_tokens"]:
+        [reference] = bb.score_items(cfg_for(tiny_model_dir), bundle, items(1), set())
+        np.testing.assert_allclose(row["letter_logprobs"], reference["letter_logprobs"])
 
 
 def test_calibrated_accuracy_removes_letter_prior():

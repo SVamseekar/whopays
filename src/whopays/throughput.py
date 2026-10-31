@@ -34,15 +34,14 @@ def summary(rows: pd.DataFrame) -> pd.DataFrame:
         size = model_size(model)
         projected = seconds / len(g) * FULL_ITEMS[task] / 60 if task in FULL_ITEMS else None
         assumed = ASSUMED_MIN.get((task, size))
+        ratio = projected / assumed if assumed else None
         rec = {"model": size, "task": task, "items": len(g), "gpu_min": round(seconds / 60, 1),
                "items_per_s": round(len(g) / seconds, 2) if seconds else None,
                "projected_full_min": round(projected, 1) if projected is not None else None,
                "assumed_min": assumed,
-               "ratio_vs_assumed": round(projected / assumed, 2) if assumed else None}
+               "ratio_vs_assumed": round(ratio, 2) if ratio is not None else None,
+               "replan": ratio is not None and ratio > REPLAN_RATIO}
         if "output_tokens" in g and g["output_tokens"].notna().any():
             rec["out_tokens_per_s"] = round(float(g["output_tokens"].sum()) / seconds, 1)
         out.append(rec)
-    table = pd.DataFrame(out)
-    if "ratio_vs_assumed" in table:
-        table["replan"] = table["ratio_vs_assumed"].gt(REPLAN_RATIO)
-    return table
+    return pd.DataFrame(out)

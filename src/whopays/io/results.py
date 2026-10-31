@@ -131,12 +131,33 @@ def load_runs(root: Path, configs: Iterable[Any]) -> pd.DataFrame:
             df = pd.DataFrame.from_records(read_rows(run_dir / ITEMS))
         else:
             continue
-        frames.append(df.assign(model=cfg.model, weight=cfg.weight, kv=cfg.kv))
+        from whopays.config import canonical_json
+
+        fields = cfg.model_dump(mode="json", exclude={"tag"})
+        fields["bitmap"] = canonical_json(cfg.bitmap) if cfg.bitmap is not None else None
+        fields["config_json"] = canonical_json(cfg.canonical())
+        # Existing logged provenance wins over caller execution preferences.
+        frames.append(df.assign(**{k: v for k, v in fields.items() if k not in df}))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def is_done(run_dir: Path) -> bool:
-    return (Path(run_dir) / DONE).exists()
+    """Validate completion artifacts before accepting a DONE marker; fail closed on damage."""
+    run_dir = Path(run_dir)
+    if not (run_dir / DONE).exists():
+        return False
+    required = (ITEMS, PARQUET, "config.yaml", "meta.json")
+    missing = [name for name in required if not (run_dir / name).is_file()]
+    if missing:
+        raise ValueError(f"incomplete DONE run {run_dir.name}: missing {missing}")
+    n = json.loads((run_dir / DONE).read_text())["n_items"]
+    rows = read_rows(run_dir / ITEMS)
+    frame = pd.read_parquet(run_dir / PARQUET)
+    ids = [r["item_id"] for r in rows]
+    if (n <= 0 or len(ids) != n or len(set(ids)) != n or len(frame) != n
+            or "item_id" not in frame or frame.item_id.tolist() != ids):
+        raise ValueError(f"incomplete or inconsistent DONE run {run_dir.name}")
+    return True
 
 
 def mark_done(run_dir: Path, n_items: int) -> None:

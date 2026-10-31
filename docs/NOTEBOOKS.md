@@ -20,6 +20,11 @@ Why this works better than uploading `.ipynb` files with code inside them:
 
 - **Private repo:** use a fine-grained GitHub token stored in Colab Secrets as `GH_TOKEN`. The setup cell handles it.
 - **No GitHub at all:** run `python scripts/build_notebooks.py --bundle`, upload the `.ipynb` plus `dist/whopays-*.whl` to Colab, and set `WHOPAYS_WHEEL` in the setup cell to the exact wheel path. Wheels are never picked up automatically.
+  Current wheels embed `requirements.lock`; setup applies its constraints while retaining
+  the platform scientific base, and logs a SHA-256 code identity. Rebuild an older wheel if
+  setup reports that its embedded lock is missing.
+  Restart the runtime before switching code builds; cached Python imports otherwise retain
+  the old implementation. Setup rejects a changed build in an already imported kernel.
 
 ## Step by step: running a notebook on Colab
 

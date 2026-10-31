@@ -20,16 +20,22 @@ agreement shows whether a gap is a few FP16 near-ties or a systematic difference
 from __future__ import annotations
 
 import json
+import logging
+import math
 import os
 import re
+import shutil
+import sqlite3
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterable, Sequence
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
 
-from whopays.languages import LANGUAGES
+from whopays.languages import CODES, LANGUAGES
 
 LMEVAL_VERSION = "0.4.13"
 TOLERANCE_PTS = 1.0
@@ -38,6 +44,7 @@ _SAMPLES = re.compile(r"samples_(?P<task>.+)_\d{4}-\d{2}-\d{2}T[\d.\-]+\.jsonl$"
 # (lm-eval filter, lm-eval metric, our column) per task
 GATED = {"belebele": ("none", "acc", "correct"),
          "mgsm": ("flexible-extract", "exact_match", "correct_ascii")}
+log = logging.getLogger(__name__)
 
 
 def lmeval_task(task: str, lang: str) -> str:
@@ -93,23 +100,87 @@ def install(venv: Path = Path("/tmp/venv-lmeval")) -> Path:
     return python
 
 
+def sync_lmeval(out_dir: Path) -> bool:
+    """Mirror a consistent checkpoint, including committed SQLite/WAL requests.
+
+    Copying a live SQLite file can corrupt the remote cache or omit its WAL. Use
+    SQLite's online backup API, and upload a temporary snapshot under the same
+    folder name. Hub failures leave the local reference run running.
+    """
+    from whopays.env import get_secret
+    from whopays.io import hub_sync
+
+    token = get_secret("HF_TOKEN")
+    if not token:
+        return False
+    out_dir = Path(out_dir)
+    try:
+        with tempfile.TemporaryDirectory(prefix="whopays-lmeval-") as temp:
+            snapshot = Path(temp) / out_dir.name
+            snapshot.mkdir()
+            for source in out_dir.rglob("*"):
+                if not source.is_file() or source.name.endswith(("-wal", "-shm", "-journal")):
+                    continue
+                dest = snapshot / source.relative_to(out_dir)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with source.open("rb") as stream:
+                    is_sqlite = stream.read(16) == b"SQLite format 3\x00"
+                if is_sqlite:
+                    uri = source.resolve().as_uri() + "?mode=ro"
+                    with (closing(sqlite3.connect(uri, uri=True)) as reader,
+                          closing(sqlite3.connect(dest)) as writer):
+                        reader.backup(writer)
+                        writer.execute("PRAGMA journal_mode=DELETE")
+                else:
+                    shutil.copy2(source, dest)
+            return hub_sync.push_run(snapshot, token=token)
+    except Exception as exc:
+        log.warning("lm-eval checkpoint failed; local results retained: %s", exc)
+        return False
+
+
 def run_lmeval(model: str, tasks: Iterable[str], langs: Iterable[str], out_dir: Path, *,
                batch_size: int = 8, limit: int | None = None,
-               venv: Path = Path("/tmp/venv-lmeval")) -> Path:
-    """Run lm-eval on every task × language; output and a log go to out_dir."""
+               venv: Path = Path("/tmp/venv-lmeval"), sync: bool = True,
+               sync_interval: float = 600.0) -> Path:
+    """Run reference tasks, checkpointing requests during evaluation and on exit.
+
+    A dead GPU runtime loses at most the time since the last successful remote
+    checkpoint. Without an HF token, progress remains local only.
+    """
+    if not math.isfinite(sync_interval) or sync_interval <= 0:
+        raise ValueError("sync_interval must be positive finite seconds")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     python = install(venv)
     names = [lmeval_task(t, lang) for t in tasks for lang in langs]
     log = out_dir / "lmeval.log"
-    with log.open("a") as f:
-        proc = subprocess.run([str(python), "-m", "lm_eval",
-                               *lmeval_args(model, names, out_dir, batch_size=batch_size,
-                                            limit=limit)],
-                              stdout=f, stderr=subprocess.STDOUT,
-                              env={**os.environ, "USE_TF": "0"})
-    if proc.returncode != 0:
-        raise RuntimeError(f"lm-eval failed (exit {proc.returncode}); tail of {log}:\n"
+    with log.open("a") as f, subprocess.Popen([str(python), "-m", "lm_eval",
+                            *lmeval_args(model, names, out_dir, batch_size=batch_size,
+                                         limit=limit)],
+                           stdout=f, stderr=subprocess.STDOUT,
+                           env={**os.environ, "USE_TF": "0"}) as proc:
+        try:
+            while True:
+                try:
+                    returncode = proc.wait(timeout=sync_interval)
+                    break
+                except subprocess.TimeoutExpired:
+                    if sync:
+                        sync_lmeval(out_dir)
+        except BaseException:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+            raise
+        finally:
+            if sync:
+                sync_lmeval(out_dir)
+    if returncode != 0:
+        raise RuntimeError(f"lm-eval failed (exit {returncode}); tail of {log}:\n"
                            + "".join(log.read_text().splitlines(keepends=True)[-40:]))
     return out_dir
 
@@ -158,29 +229,37 @@ def compare(ours: pd.DataFrame, theirs: pd.DataFrame) -> pd.DataFrame:
                      & (theirs["metric"] == metric)]
         if mine.empty or ref.empty:
             continue
+        for frame in (mine, ref):
+            if frame.duplicated(["lang", "item_id"]).any():
+                raise ValueError(f"duplicate {task} language/item keys in crosscheck")
         both = mine[["lang", "item_id", col]].merge(
             ref[["lang", "item_id", "value"]], on=["lang", "item_id"], how="inner")
         for lang, g in both.groupby("lang", sort=True):
             a, b = g[col].astype(float), g["value"].astype(float)
             out.append({"task": task, "lang": lang, "n_items": len(g),
-                        "ours": round(100 * a.mean(), 2), "lmeval": round(100 * b.mean(), 2),
-                        "diff_pts": round(100 * (a.mean() - b.mean()), 2),
+                        "ours": 100 * a.mean(), "lmeval": 100 * b.mean(),
+                        "diff_pts": 100 * (a - b).mean(),
+                        "complete": (len(g) == {"belebele": 900, "mgsm": 250}[task]
+                                     and len(mine[mine.lang == lang]) == len(g)
+                                     and len(ref[ref.lang == lang]) == len(g)),
                         "agreement": round(float((a == b).mean()), 4)})
     table = pd.DataFrame(out, columns=["task", "lang", "n_items", "ours", "lmeval", "diff_pts",
-                                       "agreement"])
+                                       "agreement", "complete"])
     table["flag"] = table["diff_pts"].abs() > TOLERANCE_PTS
     return table
 
 
 def k1_verdict(table: pd.DataFrame) -> pd.DataFrame:
-    """Per task: mean |gap| over languages, and PASS when it is within TOLERANCE_PTS."""
-    g = table.groupby("task")
-    verdict = pd.DataFrame({
-        "languages": g.size(),
-        "mean_abs_diff_pts": g["diff_pts"].apply(lambda d: round(float(d.abs().mean()), 2)),
-        "max_abs_diff_pts": g["diff_pts"].apply(lambda d: round(float(d.abs().max()), 2)),
-        "mean_agreement": g["agreement"].mean().round(4),
-    }).reset_index()
-    verdict["K1"] = verdict["mean_abs_diff_pts"].le(TOLERANCE_PTS).map({True: "PASS",
-                                                                        False: "FAIL"})
-    return verdict
+    """Gate full benchmark coverage; partial comparisons never establish harness validity."""
+    rows = []
+    for task, expected in (("belebele", 900), ("mgsm", 250)):
+        g = table[table.task == task]
+        complete = (len(g) == len(CODES) and set(g.lang) == set(CODES)
+                    and g.n_items.eq(expected).all()
+                    and "complete" in g and g["complete"].all())
+        gap = float(g.diff_pts.abs().mean()) if len(g) else float("nan")
+        verdict = "INCOMPLETE" if not complete else "PASS" if gap <= TOLERANCE_PTS else "FAIL"
+        rows.append({"task": task, "languages": len(g), "mean_abs_diff_pts": gap,
+                     "max_abs_diff_pts": float(g.diff_pts.abs().max()),
+                     "mean_agreement": float(g.agreement.mean()), "K1": verdict})
+    return pd.DataFrame(rows)

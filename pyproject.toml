@@ -39,6 +39,9 @@ whopays = "whopays.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.data-files]
+"share/whopays" = ["requirements.lock"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

@@ -2,7 +2,10 @@
 
 **Who pays for fast inference?** This project measures how LLM inference optimizations (weight quantization, KV-cache compression and speculative decoding) change quality and speed differently across languages. It attributes each gap to the layer that causes it. It also introduces **ParityQuant**, a mixed-precision quantizer that minimizes the worst language's degradation at a fixed memory budget.
 
-Status: harness under construction (M0). No results yet.
+Status: CPU implementations extend through quantization, serving policies, statistics and
+allocation. The next research gate is still M0/K1: FP16 validation on a T4. No research
+results yet. See the [repository and research review](docs/REVIEW_2026-10-31.md) for
+verified software progress, remaining evidence and the next run.
 
 ```bash
 uv venv --python 3.11 .venv && source .venv/bin/activate

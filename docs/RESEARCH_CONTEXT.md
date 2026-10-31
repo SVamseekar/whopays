@@ -17,21 +17,35 @@ Read this before writing anything that claims novelty: README, paper or comments
 | Speculative decoding acceptance drops in low-resource languages | Sandler et al. (2510.02128); Paudel et al. (2605.30580) |
 | Multilingual drafters | AdaSpec (AAAI 2026) |
 | Composing weight × KV × speculative transformations in a factorial design, for **safety** | Waheed et al., Research Square preprint, Oct 2026 |
-| Mixed-precision bit allocation, including Shapley-based and calibration-aware variants | IMPQ (2509.15455), TASA (2607.00908), MixQuant (2607.23047), SliM-LLM, GAMMA |
+| Mixed-precision bit allocation, including Shapley-based and calibration-aware variants | [CoopQ/SPQE](https://arxiv.org/abs/2509.15455) (previously listed here as IMPQ), TASA (2607.00908), MixQuant (2607.23047), SliM-LLM, GAMMA |
+| Group-aware mixed precision under bit budgets and fairness objectives | [FairQuant](https://arxiv.org/abs/2602.23192), medical image classification; not a multilingual LLM audit |
+| Minimax precision balancing across MoE experts | [Colla-Q](https://arxiv.org/abs/2609.18131); experts are the protected units, rather than languages |
 | Language-proportional calibration sampling for pruning | Multilingual Brain Surgeon (2404.04748) |
 | Worst-language objective in tokenizers | Parity-aware BPE |
 
-## What we claim is new (keep claims this narrow)
+## Candidate contributions (novelty remains provisional)
 
 1. **A per-language audit of the *composed* stack, with quality and speed measured as separate channels.**
 2. **Layer-level attribution of language gaps,** using Shapley values over the factorial grid and an Oaxaca–Blinder endowment/treatment split.
-3. **ParityQuant:** a minimax (worst-language) objective for mixed-precision bit allocation, with a price-of-parity curve.
+3. **ParityQuant:** calibration-only mixed-precision allocation for the worst language's degradation in dense multilingual LLMs, with a price-of-parity curve. Do not claim the first fairness-aware or minimax mixed-precision quantizer generally; FairQuant and Colla-Q are adjacent prior art.
 
 ## Re-check before publishing
 
 Search arXiv for "worst-group" OR "minimax" mixed-precision quantization, and for multilingual compression fairness. Run the search again at M3 and M4. If something close appears, apply kill criterion K4 (PRD).
 
 - **21 Oct 2026:** searches for per-language or multilingual evaluation of KV-cache compression (eviction or quantization) found none. Benchmarks such as kvpress/RULER, SCBench and LongBench-based studies are English or long-context only. Keep checking: this underpins the KV channel of claim 1.
+- **31 Oct 2026 correction:** that negative search is not a defensible novelty claim.
+  The indexed primary paper [Towards Dynamic KV-Cache Compression: Fine-Grained Evaluation
+  of Key and Value Ranks in LLMs](https://openreview.net/pdf?id=0noVRtnzJt) includes multilingual
+  VisR-Bench analyses. Its full text was blocked by OpenReview's browser challenge during
+  this review; inspect the paper before specifying exactly what it does not cover. The
+  candidate contribution is a paired language-disparity audit of the composed stack,
+  rather than the first multilingual KV study.
+- **31 Oct 2026:** [Lightweight but Linguistically Fair?](https://arxiv.org/abs/2610.18343)
+  reports model- and method-dependent language effects. Treat disproportionate harm as a
+  falsifiable hypothesis, rather than expecting every low-resource language to lose more.
+  This and the FairQuant/Colla-Q overlaps narrow the claims under K4; they do not establish
+  that the composed multilingual audit or the specific ParityQuant objective is covered.
 
 ## Target venues
 

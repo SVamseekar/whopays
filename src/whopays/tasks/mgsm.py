@@ -101,10 +101,26 @@ def truncate_at_stop(text: str, lang: str) -> tuple[str, bool]:
 
 @torch.no_grad()
 def generate_batch(bundle, cfg: RunConfig, prompts: Sequence[str]) -> list[dict]:
-    if cfg.spec:
-        raise NotImplementedError("speculative decoding arrives with BUILD_PLAN M2")
-    if cfg.kv != "full":
-        raise NotImplementedError(f"kv={cfg.kv!r} for generation arrives with BUILD_PLAN M2")
+    if cfg.spec and bundle.draft is None:
+        raise NotImplementedError("M2 speculative generation needs a bundle loaded with a draft")
+    if cfg.spec or cfg.kv != "full":
+        from whopays.decoding.speculative import generate
+
+        results = []
+        for prompt in prompts:
+            ids = bundle.tokenizer.encode(prompt, add_special_tokens=True)
+            started = time.perf_counter()
+            decoded = generate(bundle, cfg, ids, max_new_tokens=MAX_NEW_TOKENS,
+                               stop_strings=[PROMPTS[cfg.lang][0]])
+            if bundle.device == "cuda":
+                torch.cuda.synchronize()
+            tokens = decoded.pop("token_ids")
+            results.append({**decoded, "input_tokens": len(ids), "output_tokens": len(tokens),
+                            "text": bundle.tokenizer.decode(tokens, skip_special_tokens=True),
+                            "batch_size": 1, "effective_batch_size": 1,
+                            "requested_batch_size": cfg.batch_size,
+                            "wall_time_s": round(time.perf_counter() - started, 4)})
+        return results
     tok, model = bundle.tokenizer, bundle.model
     tok.padding_side = "left"
     enc = tok(list(prompts), return_tensors="pt", padding=True).to(bundle.device)
@@ -128,9 +144,11 @@ def generate_batch(bundle, cfg: RunConfig, prompts: Sequence[str]) -> list[dict]
 
 
 def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -> Iterator[dict]:
-    todo = [it for it in items if it["item_id"] not in skip]
-    for start in range(0, len(todo), cfg.batch_size):
-        batch = todo[start : start + cfg.batch_size]
+    # Keep original padding and batch composition when resuming a partial batch.
+    for start in range(0, len(items), cfg.batch_size):
+        batch = items[start : start + cfg.batch_size]
+        if all(it["item_id"] in skip for it in batch):
+            continue
         if bundle.device == "cuda":
             torch.cuda.synchronize()
         t0 = time.perf_counter()
@@ -139,6 +157,8 @@ def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -
             torch.cuda.synchronize()
         per_item = (time.perf_counter() - t0) / len(batch)
         for item, gen in zip(batch, gens, strict=True):
+            if item["item_id"] in skip:
+                continue
             text, stopped = truncate_at_stop(gen["text"], cfg.lang)
             pred = extract_number(text)
             ascii_pred = extract_ascii_lmeval(text)
@@ -154,8 +174,11 @@ def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -
                 "hit_max_tokens": gen["output_tokens"] >= MAX_NEW_TOKENS,
                 "input_tokens": gen["input_tokens"],
                 "output_tokens": gen["output_tokens"],
-                "batch_size": cfg.batch_size,
-                "wall_time_s": round(per_item, 4),  # batch time / batch size
+                "batch_size": gen.get("batch_size", cfg.batch_size),
+                "wall_time_s": gen.get("wall_time_s", round(per_item, 4)),
+                **{key: value for key, value in gen.items()
+                   if key not in {"text", "input_tokens", "output_tokens", "batch_size",
+                                  "wall_time_s"}},
             }
 
 

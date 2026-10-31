@@ -51,8 +51,27 @@ if WHOPAYS_WHEEL:  # opt-in offline fallback: exact path to a wheel you built an
     if not (os.path.isfile(WHOPAYS_WHEEL) and os.path.basename(WHOPAYS_WHEEL).startswith("whopays-")
             and WHOPAYS_WHEEL.endswith(".whl")):
         raise SystemExit(f"WHOPAYS_WHEEL={WHOPAYS_WHEEL!r} is not a whopays-*.whl file")
-    _sh(sys.executable, "-m", "pip", "install", "-q", WHOPAYS_WHEEL + "[gpu]")
-    os.environ["WHOPAYS_CODE_VERSION"] = "wheel:" + os.path.basename(WHOPAYS_WHEEL)
+    import hashlib, zipfile  # noqa: E401
+    with zipfile.ZipFile(WHOPAYS_WHEEL) as _archive:
+        _locks = [n for n in _archive.namelist()
+                  if n.endswith(".data/data/share/whopays/requirements.lock")]
+        if len(_locks) != 1:
+            raise SystemExit("Wheel has no unique embedded requirements.lock; rebuild it")
+        _lock = _archive.read(_locks[0]).decode("utf-8")
+    with open(WHOPAYS_WHEEL, "rb") as _wheel:
+        _wheel_code = "wheel:sha256:" + hashlib.file_digest(_wheel, "sha256").hexdigest()
+    if "whopays" in sys.modules and os.environ.get("WHOPAYS_CODE_VERSION") != _wheel_code:
+        raise SystemExit("Restart the runtime before loading a different WhoPays build")
+    _keep = ("numpy==", "pandas==", "pyarrow==", "scipy==", "matplotlib==")
+    with open("/tmp/whopays-constraints.txt", "w") as _constraints:
+        _constraints.writelines(line for line in _lock.splitlines(keepends=True)
+                                if not line.startswith(_keep))
+    _sh(sys.executable, "-m", "pip", "install", "-q", "-c", "/tmp/whopays-constraints.txt",
+        WHOPAYS_WHEEL + "[gpu]")
+    # pip can skip a rebuilt wheel with the same package version. Reinstall only our code.
+    _sh(sys.executable, "-m", "pip", "install", "-q", "--force-reinstall", "--no-deps",
+        WHOPAYS_WHEEL)
+    os.environ["WHOPAYS_CODE_VERSION"] = _wheel_code
 else:
     _src = "/content/whopays" if PLATFORM == "colab" else "/kaggle/working/whopays-src"
     if os.environ.get("GH_TOKEN"):  # private repo; keeps the token out of URLs and logs
@@ -67,6 +86,8 @@ else:
     _sh("git", "-C", _src, "checkout", "-q", "--force", "FETCH_HEAD")
     _commit = subprocess.run(["git", "-C", _src, "rev-parse", "HEAD"], capture_output=True,
                              text=True, check=True).stdout.strip()
+    if "whopays" in sys.modules and os.environ.get("WHOPAYS_CODE_VERSION") != _commit:
+        raise SystemExit("Restart the runtime before loading a different WhoPays build")
     # Pin our stack, but keep the platform's own numpy/pandas/pyarrow/scipy (like torch):
     # replacing them breaks the preinstalled Colab/Kaggle packages that depend on them.
     _keep = ("numpy==", "pandas==", "pyarrow==", "scipy==", "matplotlib==")

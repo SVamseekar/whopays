@@ -2,6 +2,53 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-31 — Offline wheels carry the lock and use content identity
+Include `requirements.lock` in built wheels, enforce those constraints in the upload setup
+while preserving the platform scientific base as in the Git install, and log the wheel's
+SHA-256 as code identity. Filename-only identity allowed rebuilt code to resume the same
+results folder, and the old wheel path skipped dependency pins. Reject older wheels without
+the embedded lock. Force reinstall our wheel without reinstalling dependencies, and require
+a fresh kernel when changing builds so cached imports cannot be labelled with new code
+identity. Revisit only if a signed artifact manifest supplies equivalent immutable
+identity and pinned installation. The local build used setuptools' bundled wheel builder
+with `--no-isolation --skip-dependency-check` because standalone `wheel` is absent here.
+
+## 2026-10-31 — Reconcile implementation, keep K1 first, and checkpoint the reference run
+Preserve and verify the existing uncommitted CPU research modules while restoring the
+missing KV/decode APIs that prevented test collection. This is software progress, not
+evidence that M1–M5 gates passed. K1 remains the next research run. Baseline failure now
+stops notebook 01 before reference evaluation; lm-eval checkpoints consistent SQLite
+snapshots during execution and on exit so a dead runtime can recover remote requests.
+The throughput gate uses the unrounded ratio. Reverse the execution order only after
+reviewing the complete logged T4 K1 outputs and measured compute projection.
+
+## 2026-10-31 — Correct the pairwise Oaxaca specification before observing results
+Amend the PRD/prospective preregistration to omit script from English-versus-language
+decompositions and reject any covariate span that contains the group indicator. Differing
+group-constant scripts make pooled OLS fit both group means and force the residual treatment
+gap to zero, predetermining H3. Keep the split descriptive and the H3 threshold unchanged.
+A separately specified across-language exploratory model could use script; reversing this
+restriction would require a design that does not mechanically identify pairwise group.
+
+## 2026-10-31 — Compressed-cache speculation is currently a correctness control
+Use real k-token draft/block verification with rollback for the full cache. For eviction and
+quant4, draft k proposals but verify the accepted prefix sequentially so every target token
+sees the same eviction/quantization state as plain greedy. Roll back only the full draft
+cache, count all actual forwards and wasted proposals, and log no target acceleration.
+Do not interpret this fallback's timing as an accelerated-stack result. Replace it only
+when a compressed-state block verifier passes the multilingual token-exactness gate.
+
+## 2026-10-31 — Narrow novelty claims after primary-source search (K4 review)
+FairQuant already covers group-aware fairness/bit budgets in medical imaging; Colla-Q
+covers minimax balancing across MoE experts. Retain only the specific worst-language
+degradation objective for dense multilingual LLMs as a provisional ParityQuant distinction.
+The indexed Dynamic KV-Cache Compression paper also contains multilingual analyses, so
+withdraw the earlier blanket absence claim pending full-text review. Cite these and the
+recent dialect-quantization study; neither a universal low-resource disadvantage nor
+priority over all multilingual KV work is assumed. Keep the composed-stack audit as the
+main direction unless closer prior art covers that actual comparison. Sources and proposed
+low-compute extensions are recorded in `REVIEW_2026-10-31.md`.
+
 ## 2026-10-21 — K1 gate: how ours vs lm-evaluation-harness is compared
 **Setup.** lm-eval 0.4.13 runs the K1 model (Qwen2.5-1.5B-Instruct) on `belebele_<flores>` and `mgsm_native_cot_<lang>` for all 11 languages, in FP16 with `--gen_kwargs repetition_penalty=1.0`. It is installed in its own venv, constrained to the system torch, transformers and accelerate, so its dependencies stay out of the lock. `--log_samples` gives per-item results. These are matched to our items: Belebele by link plus question number, MGSM by row position.
 

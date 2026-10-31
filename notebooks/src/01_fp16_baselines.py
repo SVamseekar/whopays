@@ -23,6 +23,8 @@ RUN_LMEVAL = True
 # Smoke tests only: lm-eval takes Belebele items in file order and we sort them by ID, so
 # with a limit the two sides score different Belebele items and the comparison is empty.
 LIMIT = None
+if RUN_LMEVAL and K1_MODEL not in MODELS:
+    raise ValueError("K1 requires its FP16 baselines: include K1_MODEL in MODELS")
 print("models:", MODELS, "| all M0 models:", list(M0_MODELS))
 
 # %% [markdown]
@@ -37,7 +39,7 @@ from whopays.env import results_root
 from whopays.grids import m0_fp16
 
 JOBS = load_jobs(m0_fp16(MODELS, limit=LIMIT))
-results = whopays.run(JOBS)
+results = whopays.run(JOBS, stop_on_error=True)
 status = pd.DataFrame([r.__dict__ for r in results])
 print(status.groupby(["task", "status"]).size().unstack(fill_value=0))
 print(status[status.status == "failed"][["run_id", "task", "lang", "error"]].to_string())
@@ -56,7 +58,6 @@ if RUN_LMEVAL:
     if not LMEVAL_DIR.exists():  # resume a previous session's request cache from the hub
         hub_sync.pull_runs(results_root(), [LMEVAL_DIR.name])
     crosscheck.run_lmeval(K1_MODEL, ["belebele", "mgsm"], CODES, LMEVAL_DIR, limit=LIMIT)
-    hub_sync.push_run(LMEVAL_DIR)
 
 ours = load_runs(results_root(), [c for c in JOBS if c.model == K1_MODEL])
 table = crosscheck.compare(ours, crosscheck.read_samples(LMEVAL_DIR))

@@ -121,6 +121,8 @@ def test_parquet_and_done_marker(tmp_path):
     df = pd.read_parquet(to_parquet(path))
     assert len(df) == N and df["text"].iloc[0] == "తెలుగు"
     assert not is_done(tmp_path)
+    (tmp_path / "config.yaml").write_text("{}")
+    (tmp_path / "meta.json").write_text("{}")
     mark_done(tmp_path, len(df))
     assert is_done(tmp_path)
 

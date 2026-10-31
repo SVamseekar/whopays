@@ -238,7 +238,11 @@ A positive I means the combined harm is larger than the sum of the parts.
 Each language l is compared with English.
 
 - **Outcome:** item-level degradation.
-- **Covariates:** token count, item length, FP16 log-probability of the gold answer, script.
+- **Covariates:** token count, item length, FP16 log-probability of the gold answer.
+  **Amended 31 Oct 2026, before research runs:** exclude script and any covariate combination
+  that exactly identifies the language group in an English-versus-language fit. Such a
+  design mechanically assigns the whole gap to endowment. Script can be used in separately
+  specified exploratory analyses across languages. The split is descriptive, not causal.
 - **Split:** endowment (the gap explained by differences in covariates) versus treatment (the gap explained by different returns to those covariates).
 - **Reference coefficients:** pooled (Neumark).
 - **Reporting:** both parts, with bootstrap CIs.
@@ -428,7 +432,9 @@ The plan is 16 weeks, starting Monday 26 Oct 2026. The audit preprint lands in w
 - [Waheed et al., Speculative Decoding Shortcuts Can Undermine Safety Guarantees (preprint, Oct 2026)](https://www.researchsquare.com/article/rs-10796407/v1)
 - [TASA: joint calibration and mixed-precision allocation](https://arxiv.org/pdf/2607.00908)
 - [MixQuant: layer sensitivity depends on upstream bit-widths](https://arxiv.org/html/2607.23047v1)
-- [IMPQ: Shapley-based mixed-precision quantization](https://arxiv.org/html/2509.15455v1)
+- [CoopQ/SPQE: Shapley-based mixed-precision quantization](https://arxiv.org/abs/2509.15455) (previously listed as IMPQ)
+- [FairQuant: fairness-aware mixed precision in medical imaging](https://arxiv.org/abs/2602.23192)
+- [Colla-Q: minimax precision balancing across MoE experts](https://arxiv.org/abs/2609.18131)
 - [Multilingual Brain Surgeon](https://arxiv.org/pdf/2404.04748)
 - [Tokenizer equity study (Parity-aware BPE)](https://arxiv.org/html/2606.15044)
 - [Free GPU limits, Oct 2026](https://gpuperhour.com/blog/free-cloud-gpus-and-credits) · [Colab FAQ](https://research.google.com/colaboratory/faq.html)

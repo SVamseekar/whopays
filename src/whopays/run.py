@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from whopays.config import RunConfig, load_jobs
+from whopays.config import RunConfig, canonical_json, load_jobs
 from whopays.env import env_info, results_root
 from whopays.io import hub_sync
 from whopays.io.results import ITEMS, ResultsWriter, is_done, mark_done, to_parquet
@@ -101,20 +101,43 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
              sync_interval: float, allow_env_change: bool) -> JobResult:
     run_id = cfg.run_id
     run_dir = root / run_id
-    if sync and not run_dir.exists():
-        hub_sync.pull_runs(root, [run_id])
+    pending_restore = root / f".restore-{run_id}"
+    if pending_restore.exists() and not sync:
+        raise RuntimeError("incomplete remote restore; retry with sync=True before running")
+    if sync and (not run_dir.exists() or pending_restore.exists()):
+        # Persist this before downloading: an interrupted partial download is not local truth.
+        root.mkdir(parents=True, exist_ok=True)
+        pending_restore.touch()
+        restored = hub_sync.pull_runs(root, [run_id])
+        if not restored and run_dir.exists():
+            raise RuntimeError("remote progress is unknown after incomplete restore")
+        pending_restore.unlink()
     if is_done(run_dir):
+        if sync:
+            hub_sync.ThrottledPush(run_dir, sync_interval)(force=True)
         n = json.loads((run_dir / "DONE").read_text())["n_items"]
         return JobResult(run_id, cfg.task, cfg.lang, "skipped", n_items=n)
 
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "config.yaml").write_text(cfg.to_yaml())
+    config_path = run_dir / "config.yaml"
+    if config_path.exists():
+        previous = RunConfig.from_yaml(config_path)
+        if previous.canonical() != cfg.canonical():
+            raise ValueError("run config differs from stored canonical configuration")
+        if previous.batch_size != cfg.batch_size:
+            raise ValueError("batch_size cannot change on resume: it affects FP16 outputs")
+    elif (run_dir / ITEMS).exists():
+        raise ValueError("cannot resume results without their original config.yaml")
     _check_meta(run_dir, allow_env_change)
+    config_path.write_text(cfg.to_yaml())
     task = get_task(cfg.task)
     bundle = models.get(cfg)
 
     info = env_info()
-    stamp = {"run_id": run_id, "task": cfg.task, "lang": cfg.lang,
+    provenance = cfg.model_dump(mode="json", exclude={"tag"})
+    provenance["bitmap"] = canonical_json(cfg.bitmap) if cfg.bitmap is not None else None
+    provenance["config_json"] = canonical_json(cfg.canonical())
+    stamp = {**provenance, "run_id": run_id, "task": cfg.task, "lang": cfg.lang,
              **{k: info[k] for k in ROW_ENV}}
     push = hub_sync.ThrottledPush(run_dir, sync_interval) if sync else None
     with ResultsWriter(run_dir / ITEMS, flush_every, on_flush=push) as writer:

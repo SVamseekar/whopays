@@ -93,13 +93,13 @@ def test_compare_gap_agreement_and_verdict():
     table = crosscheck.compare(ours, theirs).set_index(["task", "lang"])
     assert table.loc[("belebele", "te"), "diff_pts"] == 0.0
     assert table.loc[("belebele", "te"), "agreement"] == 0.99
-    assert table.loc[("belebele", "sw"), "diff_pts"] == 3.0
+    assert table.loc[("belebele", "sw"), "diff_pts"] == pytest.approx(3.0)
     assert bool(table.loc[("belebele", "sw"), "flag"])
     assert table.loc[("mgsm", "te"), "diff_pts"] == 0.0
     verdict = crosscheck.k1_verdict(table.reset_index()).set_index("task")
-    assert verdict.loc["belebele", "mean_abs_diff_pts"] == 1.5
-    assert verdict.loc["belebele", "K1"] == "FAIL"
-    assert verdict.loc["mgsm", "K1"] == "PASS"
+    assert verdict.loc["belebele", "mean_abs_diff_pts"] == pytest.approx(1.5)
+    assert verdict.loc["belebele", "K1"] == "INCOMPLETE"
+    assert verdict.loc["mgsm", "K1"] == "INCOMPLETE"
 
 
 def test_compare_uses_only_common_items():
