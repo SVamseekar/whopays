@@ -37,6 +37,7 @@ def execute_setup(monkeypatch, tmp_path, *, include_lock=True, changed_loaded_bu
     code = 'wheel:sha256:' + hashlib.sha256(wheel.read_bytes()).hexdigest()
     monkeypatch.setenv('WHOPAYS_CODE_VERSION', 'old-build' if changed_loaded_build else code)
     monkeypatch.setattr(subprocess, 'run', command)
+    monkeypatch.setattr(env, 'prepare_text_runtime', lambda: False)
     monkeypatch.setattr(env, 'print_env', lambda: None)
     namespace = {}
     exec(compile(source, str(ROOT / 'notebooks/src/_setup.py'), 'exec'), namespace)

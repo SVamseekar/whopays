@@ -2,6 +2,17 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-10-31 — Repair broken optional torchvision before text model imports
+The subsequent Colab T4 baseline attempt failed before scoring: Qwen2's import reached
+torchvision, whose registration raised `operator torchvision::nms does not exist`. The
+missing-run Hugging Face warning preceding it was a normal first-run resume lookup.
+Probe torchvision in a subprocess during notebook setup; preserve healthy installations,
+and uninstall only a failed optional torchvision while keeping the platform torch build.
+If Transformers was already imported, require a session restart to clear cached package
+availability. This text-only repair lives in `env.py` and is called before version logging.
+K1 remains untested, rather than failed on score agreement. Revisit if a future task
+actually requires vision, in which case a matching torch/torchvision stack is necessary.
+
 ## 2026-10-31 — Accept quoted wheel paths pasted into Colab forms
 The next Colab T4 setup attempt received literal double quotes around the wheel path and
 stopped before package installation or evaluation; this does not test or fail K1. Strip

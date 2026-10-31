@@ -35,6 +35,9 @@ first unfinished research task; no downstream experiment is authorized by a pass
   - Latest Colab T4 attempt stopped in setup because the wheel form value contained
     literal quotes; tolerate pasted quotes and clarify the form hint. No K1 scores were
     produced, so the gate remains untested. `HF_TOKEN` was also absent in that attempt.
+  - Subsequent attempt reached model loading, then failed on `torchvision::nms` in an
+    optional vision import. No baseline items were scored. Add a text-runtime import
+    probe/removal for broken torchvision; retry K1 after restarting the Colab session.
 
 ## M1 — Replicate + probe (weeks 3–4)
 - [x] `quant/rtn.py` and `quant/fakequant.py`: group-wise asymmetric RTN with a per-layer bit map. Unit-test the reconstruction error bounds. CPU verified 2026-10-31.

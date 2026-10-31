@@ -72,6 +72,32 @@ def results_root() -> Path:
     }[platform()]
 
 
+def prepare_text_runtime() -> bool:
+    """Remove a broken optional torchvision from an explicitly prepared text-only runtime.
+
+    Notebook setup calls this after installing dependencies and before importing
+    Transformers. Probe in a child process to keep failed native imports out of the
+    notebook kernel. Healthy/absent torchvision and the platform torch are preserved.
+    Returns whether torchvision was removed; previously loaded imports need a restart.
+    """
+    try:
+        metadata.version("torchvision")
+    except metadata.PackageNotFoundError:
+        return False
+    probe = subprocess.run([sys.executable, "-c", "import torchvision"],
+                           capture_output=True, text=True, timeout=60)
+    if probe.returncode == 0:
+        return False
+    log.warning("torchvision failed its import check; removing this optional vision package "
+                "for WhoPays text-only evaluation (keeping the platform torch)")
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "torchvision"],
+                   capture_output=True, text=True, check=True)
+    if "transformers" in sys.modules or "torchvision" in sys.modules:
+        raise RuntimeError("Removed broken torchvision. Restart the Colab/Kaggle session, "
+                           "then Run all so Transformers detects the repaired environment.")
+    return True
+
+
 def code_version() -> str:
     """Commit the installed code came from, '+dirty' if the local checkout has edits.
 

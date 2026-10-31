@@ -111,4 +111,5 @@ if MOUNT_DRIVE and PLATFORM == "colab":
 
 import whopays.env  # noqa: E402
 
+whopays.env.prepare_text_runtime()
 whopays.env.print_env()
