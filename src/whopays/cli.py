@@ -1,4 +1,4 @@
-"""Command line: `python -m whopays.cli {run,hash,smoke,grid,plan} ...`."""
+"""Command line: `python -m whopays.cli {run,hash,smoke,grid,plan,parityquant} ...`."""
 
 from __future__ import annotations
 
@@ -36,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     p_plan.add_argument("--load-minutes", type=float, default=0.0,
                         help="measured time to quantize one GPTQ model; 0 until notebook 02")
 
+    p_parity = sub.add_parser("parityquant", help="solve bit maps from a stored profile")
+    p_parity.add_argument("--model", required=True)
+    p_parity.add_argument("--root", default="results")
+    p_parity.add_argument("--out", default="configs")
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     for noisy in ("httpx", "httpx2", "huggingface_hub", "urllib3"):
@@ -51,6 +56,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "plan":
         return plan(args.root, args.out, args.load_minutes)
+
+    if args.cmd == "parityquant":
+        return solve_parity(args.model, args.root, args.out)
 
     if args.cmd == "smoke":
         return smoke(args.model, args.langs, args.n, args.device)
@@ -92,6 +100,20 @@ def plan(root: str, out: str, load_minutes: float) -> int:
     print(grids.compute_plan(jobs, costs).round(1).to_string(index=False))
     paths = grids.write_slices(jobs, costs, out, "audit")
     print(f"wrote {len(paths)} slices to {out}")
+    return 0
+
+
+def solve_parity(model: str, root: str, out: str) -> int:
+    """Write ParityQuant job lists from a stored profile; refuses a K2 failure."""
+    from whopays.gates import require_k2
+    from whopays.parityquant.plan import build_plan, write_plan
+    from whopays.parityquant.probe import load_profile
+
+    rows = load_profile(root, model)
+    require_k2(rows)
+    plan = build_plan(rows, model)
+    for path in write_plan(plan, out, model.split("-")[-2]):
+        print("wrote", path)
     return 0
 
 

@@ -74,6 +74,13 @@ def speed_subset(models: Sequence[str] = (QWEN["3B"],)) -> list[dict]:
             for spec in (False, True)]
 
 
+def scale_grid(models: Sequence[str] = (QWEN["7B"],)) -> list[dict]:
+    """7B confirmation (exploratory): FP16 and W4 on Belebele and the first 30 MGSM items."""
+    return [{"model": m, "task": t, "lang": "all", "limit": limit, **w}
+            for m in models for w in _primary_cells() if w["weight"] in ("fp16", "w4_gptq")
+            for t, limit in (("belebele", None), ("mgsm", 30))]
+
+
 FULL_ITEMS_PER_LANGUAGE = {"belebele": 900, "mgsm": 250, "flores_nll": 1012}
 
 

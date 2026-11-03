@@ -1,6 +1,10 @@
 # Autonomous implementation status
 
-Updated 2026-11-03: H2 now has item-clustered GEE p-values, fractional budgets have
+Updated 2026-11-03 (later): notebooks 02-07 and analysis exist, and all research code runs on
+CPU fixtures. Every remaining item needs GPU evidence, a user decision on the compute re-plan,
+or is the optional FR-14. Downstream notebooks refuse to run until K1 passes.
+
+Earlier on 2026-11-03: H2 now has item-clustered GEE p-values, fractional budgets have
 a sensitivity-free `matched_uniform` comparator, and profile resume pins code, model
 and library identity. These are CPU specifications, not measurements.
 [repository/research review](REVIEW_2026-10-31.md) records the 31 Oct inventory.

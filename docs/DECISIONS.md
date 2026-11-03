@@ -2,6 +2,9 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-03 — M3 to M5 software is complete on CPU; closed-loop refinement is not built
+`report/hypotheses.py` computes H1 to H4 with planted-effect tests, and `report/analysis.py` rebuilds every table from Parquet, listing any factorial with missing cells as pending. H4 reselects the best baseline inside each bootstrap resample, so its identity is not treated as known. When two methods solve to the same bit map at the same calibration they are one run with one set of rows, which is correct and leaves the comparison tied. `whopays.cli parityquant` refuses a K2 failure. 7B loads across both GPUs and refuses one GPU with a clear message. FR-14 (`refine.py`) is P2 and optional, and is not built: it needs a profile measured against an already quantized background, which only makes sense after K3. Build it only if K3 is positive and the budget remains.
+
 ## 2026-11-03 — Compute plan exceeds the budget on logged timings; re-plan at the M0 gate
 Run start stamps from the 31 Oct T4 run give about 30 min for Belebele and 76 min for MGSM (1.5B, 11 languages), against 15 and 30 assumed. These are wall-clock estimates, not the gate figure, which notebook 01 now prints from summed `wall_time_s`. Assuming 3B costs twice 1.5B, the audit needs about 108 GPU-hours: 42 Belebele cells at 30 and 60 min (63 h) plus 12 MGSM cells at 76 and 152 min (45 h). The PRD budgets 60 h. The PRD's own first lever, dropping MGSM seeds, is already applied. Do not start M2 until `python -m whopays.cli plan` runs on the logged baselines and the user chooses a cut (for example fewer Belebele seeds on 3B, or 1.5B-only replication). Reverse nothing here; this entry records the constraint.
 

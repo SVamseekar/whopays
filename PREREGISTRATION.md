@@ -125,3 +125,6 @@ separate `noise_limited` warning. The warning does not change the gate.
 **Speculative decoding.** FR-5 exactness runs on 10 prompts per language (110 in total) under
 each cache policy, past EOS, up to 256 tokens. Compressed-cache block verification may replace
 the labelled sequential control only after that gate passes on a T4.
+
+**Oaxaca covariates.** Item length is the English token count of the parallel item, so it
+carries no token premium. Token count is the language's own count for that item.

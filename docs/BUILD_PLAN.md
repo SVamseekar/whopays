@@ -82,16 +82,22 @@ first unfinished research task; no downstream experiment is authorized by a pass
   - [x] CPU estimator tests and Oaxaca group-identification guard. Complete H2 interaction
     inference before claiming FR-10: variational credible intervals do not supply BH p-values.
   - [x] H2 p-values: language-specific weight × KV Wald tests from an item-clustered binomial GEE, with BH limited to that family. The variational fit stays descriptive. GPU evidence remains absent.
-- [ ] `analysis.ipynb` and `report/figures.py`.
+- [x] `analysis.ipynb` and `report/figures.py`. CPU-tested on synthetic rows; H1-H4 tables come from `report/hypotheses.py`.
 - [ ] Draft the audit preprint.
+  - [x] Methods draft without results: `docs/preprint/AUDIT_DRAFT.md`. Results sections wait for M2.
 
 ## M4 — ParityQuant (weeks 11–14)
 - [ ] `parityquant/allocate.py`: the minimax MILP (PuLP + CBC), the average objective, uniform and soft-max variants. Test that the budget is met exactly.
   - [x] CPU: `matched_uniform`, the sensitivity-free exact-budget comparator used when the target is not an allowed width. K3 remains open.
+  - [x] CPU: `parityquant/plan.py` and `whopays.cli parityquant` solve 4 methods × 3 budgets, write job lists and compute H4; a K2 failure stops them.
 - [ ] Notebook `06_parityquant_eval`. **GPU check, K3 gate.**
-- [ ] Optional: `parityquant/refine.py` (FR-14).
+  - [x] CPU: notebook built. Needs K1 and K2 passes, then bit maps solved locally.
+- [ ] Optional: `parityquant/refine.py` (FR-14). Not built; only useful after a positive K3 (DECISIONS 2026-11-03).
 
 ## M5 — Scale + release (weeks 15–16)
 - [ ] Notebook `07_scale_7b`.
+  - [x] CPU: notebook built; 7B loads across T4×2. GPU run is exploratory and needs a K1 pass.
 - [ ] `report/card.py` (FR-16) and `space/app.py` (FR-15).
+  - [x] CPU: both exist and card tests pass. FR-15's 10-second load needs the released Parquet.
 - [ ] Release checklist: every figure regenerates from released Parquet in under 10 minutes on the M1.
+  - [x] CPU: `scripts/release_check.py` measures it. Needs the released Parquet to pass.

@@ -31,6 +31,11 @@ class ModelBundle:
 def _load_causal_lm(name: str, device: str, dtype: torch.dtype):
     from transformers import AutoModelForCausalLM
 
+    if device == "cuda" and "7B" in name:  # about 15 GB in FP16, more than one T4 holds
+        if torch.cuda.device_count() < 2:
+            raise ValueError(f"{name} needs two GPUs: use Kaggle's T4×2 accelerator")
+        return AutoModelForCausalLM.from_pretrained(
+            name, dtype=dtype, attn_implementation="sdpa", device_map="auto").eval()
     model = AutoModelForCausalLM.from_pretrained(name, dtype=dtype, attn_implementation="sdpa")
     return model.to(device).eval()
 

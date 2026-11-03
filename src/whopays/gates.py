@@ -59,3 +59,17 @@ def require_k1(root: Path, override: str | None = None) -> bool:
         f.write(json.dumps({"gate": "K1", "reason": override,
                             "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
     return False
+
+
+def require_k2(rows) -> bool:
+    """Stop ParityQuant on a K2 failure: the PRD drops M4 and extends the audit instead."""
+    from whopays.parityquant.probe import k2_verdict
+
+    verdict = k2_verdict(rows)
+    if verdict.K2 != "PASS":
+        raise GateError(f"K2 failed: minimum Spearman {verdict.min_spearman:.3f} above the "
+                        "threshold. PRD: drop M4 and extend the audit with Llama-3.2.")
+    if verdict.noise_limited:
+        log.warning("K2 passed but split-half reliability is low (%.3f); differences between "
+                    "languages may be sampling noise", verdict.split_half_min)
+    return True
