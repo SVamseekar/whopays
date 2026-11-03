@@ -72,3 +72,12 @@ def test_36_layer_weighted_budget_and_negative_losses():
     assert sum(result.bits) == 126
     assert result.objective_value < 0
     assert result.bit_map['layer.0'] == result.bits[0]
+
+
+def test_lock_pins_one_solver_stack_on_every_python():
+    # PuLP 4 removed PULP_CBC_CMD and the bundled CBC, so a Python-specific pin breaks Kaggle.
+    from pathlib import Path
+
+    lock = (Path(__file__).parents[1] / 'requirements.lock').read_text().splitlines()
+    pins = [line for line in lock if line.startswith('pulp==')]
+    assert len(pins) == 1 and pins[0].startswith('pulp==3.') and ';' not in pins[0]

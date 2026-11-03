@@ -2,6 +2,9 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-03 — Pin PuLP below 4 on every Python
+The lock resolved PuLP 3.3.2 on Python 3.11 and 4.0.1 on 3.12 and later. PuLP 4 removed `PULP_CBC_CMD` and the bundled CBC binary and changed the `LpVariable` constructor, so the allocator failed on Python 3.12 in CI from `2ad1821` onward, and would have failed on Kaggle. Local tests passed because the M1 runs 3.11, and the branch had no CI until it was pushed. Cap `pulp<4` so every platform solves with the same PuLP and CBC, which also keeps allocation reproducible. Reverse by moving to `pulp[cbc]` with `COIN_CMD` and `add_variable` on all Pythons, once there is a reason to.
+
 ## 2026-11-03 — M3 to M5 software is complete on CPU; closed-loop refinement is not built
 `report/hypotheses.py` computes H1 to H4 with planted-effect tests, and `report/analysis.py` rebuilds every table from Parquet, listing any factorial with missing cells as pending. H4 reselects the best baseline inside each bootstrap resample, so its identity is not treated as known. When two methods solve to the same bit map at the same calibration they are one run with one set of rows, which is correct and leaves the comparison tied. `whopays.cli parityquant` refuses a K2 failure. 7B loads across both GPUs and refuses one GPU with a clear message. FR-14 (`refine.py`) is P2 and optional, and is not built: it needs a profile measured against an already quantized background, which only makes sense after K3. Build it only if K3 is positive and the budget remains.
 
