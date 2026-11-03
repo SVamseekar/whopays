@@ -72,6 +72,15 @@ def results_root() -> Path:
     }[platform()]
 
 
+def source_root() -> Path:
+    """Checkout that notebook setup installed from, so runners can read committed configs."""
+    return {
+        "colab": Path("/content/whopays"),
+        "kaggle": Path("/kaggle/working/whopays-src"),
+        "local": Path.cwd(),
+    }[platform()]
+
+
 def prepare_text_runtime() -> bool:
     """Remove broken optional vision/audio packages from a prepared text-only runtime.
 

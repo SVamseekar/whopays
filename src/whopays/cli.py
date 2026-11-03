@@ -1,4 +1,4 @@
-"""Command line: `python -m whopays.cli {run,hash} ...`."""
+"""Command line: `python -m whopays.cli {run,hash,smoke,grid,plan} ...`."""
 
 from __future__ import annotations
 
@@ -27,6 +27,15 @@ def main(argv: list[str] | None = None) -> int:
     p_smoke.add_argument("--n", type=int, default=20, help="items per language")
     p_smoke.add_argument("--langs", nargs="+", default=["en", "te"])
 
+    p_grid = sub.add_parser("grid", help="write job lists for the experiment grids")
+    p_grid.add_argument("--out", default="configs")
+
+    p_plan = sub.add_parser("plan", help="GPU-hours and slices from measured FP16 baselines")
+    p_plan.add_argument("--root", default="results")
+    p_plan.add_argument("--out", default="configs")
+    p_plan.add_argument("--load-minutes", type=float, default=0.0,
+                        help="measured time to quantize one GPTQ model; 0 until notebook 02")
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     for noisy in ("httpx", "httpx2", "huggingface_hub", "urllib3"):
@@ -37,6 +46,12 @@ def main(argv: list[str] | None = None) -> int:
             print(cfg.run_id, cfg.task, cfg.lang, cfg.model, cfg.weight, cfg.kv)
         return 0
 
+    if args.cmd == "grid":
+        return write_grids(args.out)
+
+    if args.cmd == "plan":
+        return plan(args.root, args.out, args.load_minutes)
+
     if args.cmd == "smoke":
         return smoke(args.model, args.langs, args.n, args.device)
 
@@ -44,6 +59,40 @@ def main(argv: list[str] | None = None) -> int:
 
     results = run(args.jobs, root=args.root, sync=not args.no_sync)
     return int(any(r.status == "failed" for r in results))
+
+
+def write_grids(out: str) -> int:
+    from pathlib import Path
+
+    from whopays import grids
+
+    specs = {"replication": grids.replication_grid(), "audit": grids.audit_grid(),
+             "speed": grids.speed_grid() + grids.speed_subset()}
+    for name, jobs in specs.items():
+        jobs = load_jobs(jobs)
+        path = grids.write_jobs(jobs, Path(out) / f"{name}.yaml")
+        print(f"{path}: {len(jobs)} runs")
+    return 0
+
+
+def plan(root: str, out: str, load_minutes: float) -> int:
+    """Print the M0 re-plan table and write audit slices from logged 1.5B baselines."""
+    from whopays import grids
+    from whopays.io.results import load_runs
+
+    rows = load_runs(root, load_jobs(grids.m0_fp16([grids.K1_MODEL])))
+    if rows.empty:
+        raise SystemExit(f"no baselines under {root}; pull the results dataset first")
+    # Planning assumption until 3B baselines exist: the PRD's 2x from 1.5B to 3B.
+    assume = {grids.QWEN["3B"]: (grids.K1_MODEL, 2.0)}
+    load = {w: load_minutes * 60 for w in ("w4_gptq", "w3_gptq")}
+    jobs = load_jobs(grids.audit_grid())
+    costs = grids.project_costs(jobs, grids.measured_rates(rows), assume=assume,
+                                load_seconds=load)
+    print(grids.compute_plan(jobs, costs).round(1).to_string(index=False))
+    paths = grids.write_slices(jobs, costs, out, "audit")
+    print(f"wrote {len(paths)} slices to {out}")
+    return 0
 
 
 def smoke(model: str, langs: list[str], n: int, device: str | None) -> int:

@@ -41,13 +41,14 @@ def _model_identity(bundle):
 
 @torch.no_grad()
 def profile(bundle, texts_by_language, bits=(2, 3, 4, 8), *, method='rtn',
-            calibration=None, group_size=128, batch_size=8, output_path=None, run_id=None):
+            calibration=None, group_size=128, batch_size=8, output_path=None, run_id=None,
+            on_row=None):
     """Return long-form layer × bits × language rows suitable for allocation.
 
     run_id identifies the reference model/config and is required for persistence. Resume
     verifies settings, texts, model identity and the pinned code/GPU/library environment,
     and trims an interrupted final JSON line. A mismatch refuses the resume instead of
-    appending rows from another environment.
+    appending rows from another environment. ``on_row`` runs after each durable row.
     """
     if method not in ('rtn', 'gptq') or (method == 'gptq' and not calibration):
         raise ValueError('expected rtn or gptq with calibration batches')
@@ -132,6 +133,8 @@ def profile(bundle, texts_by_language, bits=(2, 3, 4, 8), *, method='rtn',
                             f.write(json.dumps(row, sort_keys=True) + '\n')
                             f.flush()
                     rows.append(row)
+                    if on_row:
+                        on_row(row)
         finally:
             for name in names:
                 layers[name].weight.copy_(originals[name])

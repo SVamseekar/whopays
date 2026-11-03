@@ -1,8 +1,11 @@
-"""Greedy draft/verify with real full-cache block verification (FR-5).
+"""Greedy draft/verify with block verification (FR-5).
 
-Compressed policies verify sequentially: eviction after every token and quantized residual
-flushes are stateful, so block verification would change the reference greedy semantics.
-That conservative mode does not accelerate target inference and is labelled accordingly.
+The full cache verifies a draft block in one forward. Compressed caches are stateful, so a
+plain block forward would change greedy semantics. Two exact replays exist behind
+``compressed_block``: eviction gives each block token a 4D attention row equal to the cache it
+would have seen sequentially, and the quantized cache takes a block only when no residual
+flush can occur inside it. These stay off (labelled sequential, no acceleration) until
+COMPRESSED_BLOCK_VERIFIED records a passed T4 exactness gate (DECISIONS 2026-10-31).
 Counters include every model forward, including prefill and correction/bonus forwards.
 """
 
@@ -14,6 +17,23 @@ import torch
 
 from whopays.kv.policies import after_decode, after_prefill, cache_bytes, new_cache, rollback
 
+COMPRESSED_BLOCK_VERIFIED = False  # set True only with a logged notebook 05 exactness PASS
+
+
+def eviction_attention(cached: int, block: int, budget: int, device) -> torch.Tensor:
+    """Boolean (1, 1, block, cached + block) mask replaying sequential sink+recent eviction."""
+    sink = min(4, budget)
+    recent = budget - sink
+    mask = torch.zeros((1, 1, block, cached + block), dtype=torch.bool, device=device)
+    kept = list(range(cached))
+    for j in range(block):
+        current = cached + j
+        mask[0, 0, j, [*kept, current]] = True
+        kept.append(current)
+        if len(kept) > budget:
+            kept = kept[:sink] + (kept[-recent:] if recent else [])
+    return mask
+
 
 class _State:
     def __init__(self, model, cfg, device):
@@ -24,20 +44,43 @@ class _State:
         self.peak_bytes = 0
         self.logits = None
 
-    def forward(self, tokens, *, prefill=False):
+    def forward(self, tokens, *, prefill=False, commit=True, mask=None):
         ids = torch.tensor([tokens], dtype=torch.long, device=self.device)
         positions = torch.arange(self.position, self.position + len(tokens), device=self.device)
-        mask = torch.ones((1, self.cache.get_seq_length() + len(tokens)),
-                          dtype=torch.long, device=self.device)
+        if mask is None:
+            mask = torch.ones((1, self.cache.get_seq_length() + len(tokens)),
+                              dtype=torch.long, device=self.device)
         out = self.model(input_ids=ids, attention_mask=mask, position_ids=positions[None],
                          past_key_values=self.cache, use_cache=True)
         self.cache = out.past_key_values
         self.position += len(tokens)
         self.forwards += 1
         self.logits = out.logits[0, -1]
-        (after_prefill if prefill else after_decode)(self.cache, self.cfg)
-        self.peak_bytes = max(self.peak_bytes, cache_bytes(self.cache))
+        if prefill:
+            after_prefill(self.cache, self.cfg)
+        if commit:
+            self.commit()
+        else:
+            self.peak_bytes = max(self.peak_bytes, cache_bytes(self.cache))
         return out.logits[0]
+
+    def commit(self):
+        """Apply the decode policy; evicted history cannot be rolled back after this."""
+        after_decode(self.cache, self.cfg)
+        self.peak_bytes = max(self.peak_bytes, cache_bytes(self.cache))
+
+    def block_is_exact(self, size):
+        """True when one forward of `size` tokens equals `size` sequential forwards."""
+        if self.cfg.kv != "quant4":
+            return True
+        return all((layer.keys.shape[-2] if layer.keys.ndim == 4 else 0) + size
+                   < layer.residual_length for layer in self.cache.layers)
+
+    def block_mask(self, size):
+        if self.cfg.kv != "evict":
+            return None
+        return eviction_attention(self.cache.get_seq_length(), size, self.cfg.kv_budget,
+                                  self.device)
 
     def rewind(self, n):
         if n:
@@ -51,7 +94,8 @@ class _State:
 @torch.no_grad()
 def generate(bundle, cfg, input_ids: Sequence[int] | torch.Tensor, max_new_tokens: int = 256,
              *, stop_strings: Sequence[str] | str | None = None,
-             eos_token_id: int | Sequence[int] | None = None) -> dict:
+             eos_token_id: int | Sequence[int] | None = None,
+             compressed_block: bool | None = None) -> dict:
     """Generate one unpadded prompt; return new token IDs and honest inference accounting.
 
     EOS and a completed stop string are included in token_ids, matching Transformers.
@@ -81,13 +125,16 @@ def generate(bundle, cfg, input_ids: Sequence[int] | torch.Tensor, max_new_token
     stops = [stop_strings] if isinstance(stop_strings, str) else list(stop_strings or [])
     if any(not s for s in stops):
         raise ValueError("stop_strings must be nonempty strings")
-    mode = "block" if cfg.spec and cfg.kv == "full" else "sequential"
+    if compressed_block is None:
+        compressed_block = COMPRESSED_BLOCK_VERIFIED
+    mode = "block" if cfg.spec and (cfg.kv == "full" or compressed_block) else "sequential"
     result = {"token_ids": [], "accepted_tokens": 0, "proposed_tokens": 0,
               "steps": 0, "target_forwards": 0, "target_forward_passes": 0,
               "target_prefill_forwards": 0, "target_decode_forwards": 0,
               "draft_forwards": 0, "draft_prefill_forwards": 0,
               "cache_storage_bytes": 0, "verification_mode": mode,
-              "target_acceleration_enabled": bool(cfg.spec and cfg.kv == "full"),
+              "target_acceleration_enabled": mode == "block",
+              "block_rounds": 0, "sequential_rounds": 0,
               "stopped_at_eos": False, "stopped_at_stop_string": False}
     if max_new_tokens == 0:
         return result
@@ -127,7 +174,8 @@ def generate(bundle, cfg, input_ids: Sequence[int] | torch.Tensor, max_new_token
             if token in eos:
                 break
         result["proposed_tokens"] += len(proposals)
-        if mode == "sequential":
+        if mode == "sequential" or not target.block_is_exact(len(proposals)):
+            result["sequential_rounds"] += 1
             # Verify the same k-proposal prefix, but commit target state one token at
             # a time. Compressed history is never rolled back or replayed.
             accepted = 0
@@ -151,8 +199,9 @@ def generate(bundle, cfg, input_ids: Sequence[int] | torch.Tensor, max_new_token
             draft.forward([correction])
             continue
 
+        result["block_rounds"] += 1
         first = target.next()
-        verified = target.forward(proposals)
+        verified = target.forward(proposals, commit=False, mask=target.block_mask(len(proposals)))
         predictions = [first] + verified[:-1].argmax(dim=-1).tolist()
         accepted = 0
         ended = False
@@ -167,6 +216,7 @@ def generate(bundle, cfg, input_ids: Sequence[int] | torch.Tensor, max_new_token
         # Keep only the verified, emitted prefix. Draft and target roll back together.
         target.rewind(len(proposals) - accepted)
         draft.rewind(len(proposals) - accepted)
+        target.commit()
         if ended:
             break
         correction = (predictions[accepted] if accepted < len(proposals)

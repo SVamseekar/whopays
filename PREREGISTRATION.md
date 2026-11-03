@@ -1,6 +1,6 @@
 # WhoPays + ParityQuant preregistration
 
-Draft date: 2026-10-22. Amended: 2026-10-31. Status: prospective protocol;
+Draft date: 2026-10-22. Amended: 2026-10-31, 2026-11-03 (twice). Status: prospective protocol;
 the original file was uncommitted at this review. Registration requires a recorded commit
 before M2 execution; this file's existence alone is not evidence of registration.
 Source of truth: docs/PRD.md and the dated decisions log. This document contains
@@ -106,3 +106,22 @@ average. Ties break toward higher widths on earlier layers. The objective does
 not read sensitivities. Uniform remains the comparator when the target is an
 allowed width. At 3.5 bits, uniform is undefined and `matched_uniform` is the
 baseline. Minimax, average and softmax remain the sensitivity-using objectives.
+
+## Second amendment — 2026-11-03, before research results
+
+No quantized, KV or speculative result exists; the results dataset holds FP16 baselines and
+two labelled smoke runs only. These specify points the protocol above left open.
+
+**Grid.** The PRD's "12 quality cells × 2 models, extra seeds on Belebele" is operationalized:
+MGSM runs the 12 cells at multilingual calibration, seed 0. Calibration language and the three
+seeds replicate on Belebele only. The speed grid runs those 12 cells draft off and on for 1.5B
+(24 cells). 3B runs FP16 and W4 with a full cache, draft off and on (4 cells).
+
+**K2.** The vector is one language's 4-bit sensitivities across decoder blocks. The PRD
+threshold (minimum pairwise Spearman at most 0.9) stays literal. The profile uses two disjoint
+text halves per language, and their Spearman-Brown-corrected reliability is reported as a
+separate `noise_limited` warning. The warning does not change the gate.
+
+**Speculative decoding.** FR-5 exactness runs on 10 prompts per language (110 in total) under
+each cache policy, past EOS, up to 256 tokens. Compressed-cache block verification may replace
+the labelled sequential control only after that gate passes on a T4.

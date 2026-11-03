@@ -83,8 +83,8 @@ def lmeval_args(model: str, task_names: Sequence[str], out_dir: Path, *, batch_s
     return args
 
 
-def install(venv: Path = Path("/tmp/venv-lmeval")) -> Path:
-    """Create the lm-eval venv (idempotent); return its python.
+def install(venv: Path = Path("/tmp/venv-lmeval"), package: str | None = None) -> Path:
+    """Create an isolated reference venv (idempotent); return its python.
 
     Created without pip because Colab's Python has no ensurepip; the system pip, visible
     through --system-site-packages, installs into it.
@@ -99,7 +99,7 @@ def install(venv: Path = Path("/tmp/venv-lmeval")) -> Path:
     constraints.write_text("".join(f"{p}=={md.version(p)}\n"
                                    for p in ("torch", "transformers", "accelerate")))
     subprocess.run([str(python), "-m", "pip", "install", "-q", "-c", str(constraints),
-                    f"lm-eval=={LMEVAL_VERSION}"], check=True)
+                    package or f"lm-eval=={LMEVAL_VERSION}"], check=True)
     return python
 
 

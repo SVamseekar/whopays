@@ -57,8 +57,10 @@ first unfinished research task; no downstream experiment is authorized by a pass
 - [x] Calibration sampler: English-only and multilingual FLORES dev, with a seed. CPU verified 2026-10-31.
 - [x] Loader: a fake-quant mode driven by a bit map. CPU verified 2026-10-31.
 - [ ] Notebook `02_replicate_uniform`. **GPU check:** FR-3 is within 2% of a GPTQModel W4 checkpoint, and the per-language gap goes in the published direction.
+  - [x] CPU: notebook built; `replicate.py` runs the checkpoint in an isolated venv and computes both checks; `gates.require_k1` blocks it until K1 passes. GPU evidence is absent.
 - [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
   - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
+  - [x] CPU: notebook built; `parityquant/probe.py` runs a resumable profile, decides K2 at 4 bits and reports split-half reliability. A full profile would take about 33 h, so the default is 100 sentences per language (DECISIONS 2026-11-03).
 
 ## M2 — Audit grid (weeks 5–8)
 - [x] Write and commit `PREREGISTRATION.md` (dated) from PRD §Research questions and §Statistical protocol. Prospective draft amended and committed 2026-10-31, before any M2 run. Remaining H2 inference and fractional-budget comparator specifications are explicitly open in that file.
@@ -68,9 +70,12 @@ first unfinished research task; no downstream experiment is authorized by a pass
 - [ ] `decoding/speculative.py`: greedy draft-verify, k = 4, logging. The exactness test against plain greedy is mandatory (FR-5).
   - [x] CPU exactness, rejection/EOS/stop/boundary tests and MGSM integration. Full cache
     uses block verification; compressed caches use a labelled sequential correctness control.
-  - [ ] Accelerated compressed-cache verification and multilingual T4 exactness gate.
+  - [x] CPU: exact block verification for eviction and quantized caches, off behind `COMPRESSED_BLOCK_VERIFIED`; gate code in `decoding/exactness.py`.
+  - [ ] Multilingual T4 exactness gate (notebook 05), then set the flag.
 - [ ] `configs/` generator for the 12-cell × 2-model grid, plus job-list slices sized at ≤ 10 h each.
-- [ ] Notebooks `04_audit_grid` and `05_speed_grid`.
+  - [x] CPU: `whopays.cli grid` writes the job lists; `whopays.cli plan` projects GPU-hours and writes slices from logged baselines.
+  - [ ] Run `plan` on the logged baselines and write slices. **Blocked:** needs K1 rows and a compute re-plan; the audit projects to about 108 h against 60 h budgeted (DECISIONS 2026-11-03).
+- [x] Notebooks `04_audit_grid` and `05_speed_grid` built. CPU only; each needs a K1 pass to run.
 
 ## M3 — Decomposition (weeks 9–10, M1 only)
 - [ ] `stats/bootstrap.py`, `stats/mixed.py`, `stats/shapley.py`, `stats/oaxaca.py`, `stats/inequality.py`, each tested on synthetic planted effects (FR-10, FR-11).
