@@ -4,14 +4,16 @@
 # 1. **Baselines:** FP16 Belebele, MGSM and FLORES NLL in 11 languages for each model in
 #    `MODELS`. Runs are resumable and synced to the HF results dataset, so a dead session
 #    loses at most one flush (50 items).
-# 2. **K1 gate:** lm-evaluation-harness on the K1 model (1.5B), Belebele and MGSM, all 11
+# 2. **Throughput:** measured GPU time, projected to the full benchmark and compared with the
+#    PRD's assumptions. More than 2× slower means re-planning the compute budget. Printed
+#    before lm-eval, so a reference failure cannot hide it.
+# 3. **K1 gate:** lm-evaluation-harness on the K1 model (1.5B), Belebele and MGSM, all 11
 #    languages, compared item by item with our runs. The gate passes when, for each task, the
 #    mean |ours − lm-eval| over languages is ≤ 1 point.
-# 3. **Throughput:** measured GPU time, projected to the full benchmark and compared with the
-#    PRD's assumptions. More than 2× slower means re-planning the compute budget.
 #
-# **Colab (about 2–2.5 h):** keep `MODELS` as the 1.5B only. **Kaggle:** add the 0.5B and 3B
-# (Save & Run All). Re-running skips finished work, including lm-eval's cached requests.
+# **Kaggle (Save & Run All) is the safer choice:** lm-eval's duration is not yet measured and
+# may exceed Colab's 3 h limit. Keep `MODELS` as the 1.5B to finish K1 first; add the 0.5B and
+# 3B later. Re-running skips finished runs and lm-eval's cached requests.
 #
 # **Send back:** download the `.ipynb` after the run (File → Download → .ipynb).
 
@@ -45,12 +47,28 @@ print(status.groupby(["task", "status"]).size().unstack(fill_value=0))
 print(status[status.status == "failed"][["run_id", "task", "lang", "error"]].to_string())
 
 # %% [markdown]
-# ## 2 · K1 gate: lm-evaluation-harness on the same items
+# ## 2 · Throughput vs the PRD's assumptions
+
+# %%
+from whopays import throughput
+from whopays.io.results import load_runs
+
+rows = load_runs(results_root(), JOBS)
+print(throughput.summary(rows).to_string(index=False))
+
+# MGSM health per language: no-number outputs and outputs cut at the 256-token cap.
+mg = rows[rows.task == "mgsm"]
+if not mg.empty:
+    print()
+    print(mg.groupby(["model", "lang"])[["correct", "correct_ascii", "extraction_failed",
+                                         "hit_max_tokens"]].mean().round(3).to_string())
+
+# %% [markdown]
+# ## 3 · K1 gate: lm-evaluation-harness on the same items
 
 # %%
 from whopays import crosscheck
 from whopays.io import hub_sync
-from whopays.io.results import load_runs
 from whopays.languages import CODES
 
 LMEVAL_DIR = results_root() / f"lmeval-{K1_MODEL.split('/')[-1]}"
@@ -65,19 +83,3 @@ pd.set_option("display.width", 160)
 print(table.to_string(index=False))
 print()
 print(crosscheck.k1_verdict(table).to_string(index=False))
-
-# %% [markdown]
-# ## 3 · Throughput vs the PRD's assumptions
-
-# %%
-from whopays import throughput
-
-rows = load_runs(results_root(), JOBS)
-print(throughput.summary(rows).to_string(index=False))
-
-# MGSM health per language: no-number outputs and outputs cut at the 256-token cap.
-mg = rows[rows.task == "mgsm"]
-if not mg.empty:
-    print()
-    print(mg.groupby(["model", "lang"])[["correct", "correct_ascii", "extraction_failed",
-                                         "hit_max_tokens"]].mean().round(3).to_string())

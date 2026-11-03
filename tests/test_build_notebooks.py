@@ -1,4 +1,6 @@
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
 
 import nbformat
@@ -36,3 +38,12 @@ def test_committed_notebooks_are_fresh():
     for path in sorted(bn.SRC.glob("[!_]*.py")):
         target = bn.OUT / f"{path.stem}.ipynb"
         assert target.read_text() == bn.build(path, "main"), f"rebuild {target.name}"
+
+
+def test_notebook_sources_define_names_before_use():
+    # Notebook cells never run in CI, so a cell reordering can only be caught statically.
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "check", "--isolated", "--select", "F821",
+         *[str(p) for p in sorted(bn.SRC.glob("[!_]*.py"))]],
+        capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout

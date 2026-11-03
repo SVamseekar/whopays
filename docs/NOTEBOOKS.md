@@ -19,7 +19,7 @@ Why this works better than uploading `.ipynb` files with code inside them:
 **Fallback before the repo exists, or while it's private:**
 
 - **Private repo:** use a fine-grained GitHub token stored in Colab Secrets as `GH_TOKEN`. The setup cell handles it.
-- **No GitHub at all:** run `python scripts/build_notebooks.py --bundle`, upload the `.ipynb` plus `dist/whopays-*.whl` to Colab, and set `WHOPAYS_WHEEL` in the setup cell to the exact wheel path. Wheels are never picked up automatically.
+- **No GitHub at all (last resort; a commit install logs better provenance):** run `python scripts/build_notebooks.py --bundle`, upload the `.ipynb` plus `dist/whopays-*.whl` to Colab, and set `WHOPAYS_WHEEL` in the setup cell to the exact wheel path. Wheels are never picked up automatically.
   Current wheels embed `requirements.lock`; setup applies its constraints while retaining
   the platform scientific base, and logs a SHA-256 code identity. Rebuild an older wheel if
   setup reports that its embedded lock is missing.
@@ -37,7 +37,7 @@ Why this works better than uploading `.ipynb` files with code inside them:
 4. Copy the value (`hf_...`). It is shown only once.
 5. FLORES is gated. Open https://huggingface.co/datasets/facebook/flores and click **Agree and access repository**. Skip this if you already did it for `00_env_check`.
 
-**2. GitHub token (read-only, this repo only).** The repo is private, so the setup cell needs a token to download the code.
+**2. GitHub token: not needed while the repo stays public (it is public as of 2026-11-03).** Skip this step. If the repo goes private again, create a read-only token as follows.
 1. Open https://github.com/settings/personal-access-tokens/new. This is the "Fine-grained token" page.
 2. **Token name:** `colab-whopays`. **Expiration:** 90 days, or whatever you prefer.
 3. **Repository access:** select **Only select repositories**, then pick `SVamseekar/whopays`.
@@ -55,7 +55,7 @@ Never paste a token into a notebook cell.
 
 ### B. Each run
 
-1. **Open the notebook from GitHub.** Use `https://colab.research.google.com/github/SVamseekar/whopays/blob/main/notebooks/<name>.ipynb`. If Colab can't see the private repo, go to **File → Open notebook → GitHub**, tick **Include private repos**, authorize, and pick the notebook.
+1. **Open the notebook from GitHub.** Use `https://colab.research.google.com/github/SVamseekar/whopays/blob/main/notebooks/<name>.ipynb`.
 2. **Select the GPU.** Go to **Runtime → Change runtime type → Hardware accelerator: T4 GPU → Save**.
 3. **Run it.** Go to **Runtime → Run all**. If Colab asks "Grant access to HF_TOKEN / GH_TOKEN?", click **Grant access**.
 4. **Check the first cell's output.** It should print `platform: colab | GPU: Tesla T4` and then a version table. If it says "No CUDA GPU attached", redo step 2.

@@ -63,7 +63,9 @@ def pull_runs(
 ) -> bool:
     """Download run folders (all, or the given IDs) into dest/<run_id>/.
 
-    Returns False without a token or when the repo does not exist yet.
+    Returns False without a token or when the repo does not exist yet. Raises
+    PermissionError on a rejected token: the hub reports 401 as "repository not found", and
+    reading that as "no results yet" would restart finished runs from nothing.
     """
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import RepositoryNotFoundError
@@ -81,7 +83,10 @@ def pull_runs(
             allow_patterns=patterns,
             token=token,
         )
-    except RepositoryNotFoundError:
+    except RepositoryNotFoundError as exc:
+        if getattr(exc.response, "status_code", None) == 401:
+            raise PermissionError(f"HF_TOKEN rejected (401) for {repo or repo_id()}; "
+                                  "replace the token before running") from exc
         log.info("results repo %s does not exist yet", repo or repo_id())
         return False
     return True

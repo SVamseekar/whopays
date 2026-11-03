@@ -39,6 +39,9 @@ from whopays.languages import CODES, LANGUAGES
 
 LMEVAL_VERSION = "0.4.13"
 TOLERANCE_PTS = 1.0
+# lm-eval keeps vocabulary logits for every position of a scoring batch. Belebele at batch 8
+# hit CUDA OOM on a T4 (4.12 GiB for one log_softmax). MGSM generation matches our batch size.
+LMEVAL_BATCH = {"belebele": 2, "mgsm": 8}
 _BY_FLORES = {lang.flores: code for code, lang in LANGUAGES.items()}
 _SAMPLES = re.compile(r"samples_(?P<task>.+)_\d{4}-\d{2}-\d{2}T[\d.\-]+\.jsonl$")
 # (lm-eval filter, lm-eval metric, our column) per task
@@ -139,27 +142,15 @@ def sync_lmeval(out_dir: Path) -> bool:
         return False
 
 
-def run_lmeval(model: str, tasks: Iterable[str], langs: Iterable[str], out_dir: Path, *,
-               batch_size: int = 8, limit: int | None = None,
-               venv: Path = Path("/tmp/venv-lmeval"), sync: bool = True,
-               sync_interval: float = 600.0) -> Path:
-    """Run reference tasks, checkpointing requests during evaluation and on exit.
-
-    A dead GPU runtime loses at most the time since the last successful remote
-    checkpoint. Without an HF token, progress remains local only.
-    """
-    if not math.isfinite(sync_interval) or sync_interval <= 0:
-        raise ValueError("sync_interval must be positive finite seconds")
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    python = install(venv)
-    names = [lmeval_task(t, lang) for t in tasks for lang in langs]
-    log = out_dir / "lmeval.log"
-    with log.open("a") as f, subprocess.Popen([str(python), "-m", "lm_eval",
+def _run_process(python: Path, names: Sequence[str], model: str, out_dir: Path, *,
+                 batch_size: int, limit: int | None, sync: bool, sync_interval: float) -> None:
+    """Run one lm-eval process, checkpointing during evaluation and on exit."""
+    log_path = out_dir / "lmeval.log"
+    env = {**os.environ, "USE_TF": "0", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
+    with log_path.open("a") as f, subprocess.Popen([str(python), "-m", "lm_eval",
                             *lmeval_args(model, names, out_dir, batch_size=batch_size,
                                          limit=limit)],
-                           stdout=f, stderr=subprocess.STDOUT,
-                           env={**os.environ, "USE_TF": "0"}) as proc:
+                           stdout=f, stderr=subprocess.STDOUT, env=env) as proc:
         try:
             while True:
                 try:
@@ -180,8 +171,30 @@ def run_lmeval(model: str, tasks: Iterable[str], langs: Iterable[str], out_dir: 
             if sync:
                 sync_lmeval(out_dir)
     if returncode != 0:
-        raise RuntimeError(f"lm-eval failed (exit {returncode}); tail of {log}:\n"
-                           + "".join(log.read_text().splitlines(keepends=True)[-40:]))
+        raise RuntimeError(f"lm-eval failed (exit {returncode}); tail of {log_path}:\n"
+                           + "".join(log_path.read_text().splitlines(keepends=True)[-40:]))
+
+
+def run_lmeval(model: str, tasks: Iterable[str], langs: Iterable[str], out_dir: Path, *,
+               batch_size: int | None = None, limit: int | None = None,
+               venv: Path = Path("/tmp/venv-lmeval"), sync: bool = True,
+               sync_interval: float = 600.0) -> Path:
+    """Run reference tasks one process per task, each at its own batch size.
+
+    `batch_size` overrides LMEVAL_BATCH for every task. A finished task keeps its samples
+    if a later one fails. A dead GPU runtime loses at most the time since the last
+    successful remote checkpoint. Without an HF token, progress remains local only.
+    """
+    if not math.isfinite(sync_interval) or sync_interval <= 0:
+        raise ValueError("sync_interval must be positive finite seconds")
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    python = install(venv)
+    langs = list(langs)
+    for task in tasks:
+        _run_process(python, [lmeval_task(task, lang) for lang in langs], model, out_dir,
+                     batch_size=batch_size or LMEVAL_BATCH[task], limit=limit, sync=sync,
+                     sync_interval=sync_interval)
     return out_dir
 
 

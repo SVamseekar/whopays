@@ -41,9 +41,15 @@ first unfinished research task; no downstream experiment is authorized by a pass
   - After removing torchvision, model import reached torchaudio and failed on a CUDA
     build mismatch (torch 13.2 versus torchaudio 13.0). Extend the probe to both optional
     companions together. K1 score agreement and throughput remain untested.
-  - Latest shared log after the repair: weights loaded, English/German/French/Spanish
-    Belebele jobs each completed 900 items, then Russian loaded. Baseline execution is
-    progressing; full-run completion, accuracy and K1 verdicts have not been shared.
+  - 31 Oct T4 run, read from the results dataset on 3 Nov: all 33 FP16 baselines for 1.5B
+    finished (Belebele 900, MGSM 250, FLORES 1,012 items per language), then lm-eval died
+    with CUDA OOM at 32 of 39,600 requests. K1 is untested, not failed.
+  - [x] CPU fix: lm-eval per task (Belebele batch 2, MGSM batch 8); throughput prints before
+    lm-eval; a rejected HF token raises. **Next GPU check:** re-run notebook 01. Finished
+    runs skip, so only throughput and lm-eval execute.
+  - Start-stamp estimates (not the gate figure): MGSM about 76 min against 30 assumed;
+    Belebele about 30 min against 15. The gate uses summed `wall_time_s`; if it exceeds 2×,
+    re-plan the compute budget before M2.
 
 ## M1 — Replicate + probe (weeks 3–4)
 - [x] `quant/rtn.py` and `quant/fakequant.py`: group-wise asymmetric RTN with a per-layer bit map. Unit-test the reconstruction error bounds. CPU verified 2026-10-31.

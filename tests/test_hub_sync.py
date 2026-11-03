@@ -57,7 +57,7 @@ def test_pull_missing_repo_returns_false(tmp_path, monkeypatch):
     from huggingface_hub.errors import RepositoryNotFoundError
 
     monkeypatch.setenv("HF_TOKEN", "tok")
-    err = RepositoryNotFoundError("nope", response=mock.MagicMock())
+    err = RepositoryNotFoundError("nope", response=mock.MagicMock(status_code=404))
     with mock.patch("huggingface_hub.snapshot_download", side_effect=err):
         assert hub_sync.pull_runs(tmp_path) is False
 
@@ -79,3 +79,25 @@ def test_throttled_push_swallows_errors(tmp_path):
     push = hub_sync.ThrottledPush(tmp_path)
     with mock.patch.object(hub_sync, "push_run", side_effect=OSError("network down")):
         assert push() is False
+
+
+def _hub_error(status):
+    from huggingface_hub.errors import RepositoryNotFoundError
+
+    response = mock.MagicMock(status_code=status)
+    return RepositoryNotFoundError("hub refused", response=response)
+
+
+def test_pull_rejected_token_raises_instead_of_reporting_missing_repo(tmp_path, monkeypatch):
+    # The hub answers an invalid token with 401 wrapped as RepositoryNotFoundError. Treating
+    # that as "no repo yet" would silently restart finished GPU runs from nothing.
+    monkeypatch.setenv("HF_TOKEN", "expired")
+    with (mock.patch("huggingface_hub.snapshot_download", side_effect=_hub_error(401)),
+          pytest.raises(PermissionError, match="HF_TOKEN")):
+        hub_sync.pull_runs(tmp_path)
+
+
+def test_pull_absent_repo_with_valid_token_still_returns_false(tmp_path, monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "tok")
+    with mock.patch("huggingface_hub.snapshot_download", side_effect=_hub_error(404)):
+        assert hub_sync.pull_runs(tmp_path) is False

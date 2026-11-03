@@ -8,7 +8,7 @@ K1 and all subsequent GPU acceptance gates remain unverified.
 
 Started 2026-10-22 on `codex/complete-research-pipeline`.
 
-The existing M0 baseline suite passes locally (104 passed, 5 download-dependent tests skipped).
+Run `pytest -q` for the current count; download-dependent tests skip without `WHOPAYS_SLOW=1`.
 These checks are software verification, not research results.
 
 ## Execution order
@@ -22,7 +22,8 @@ These checks are software verification, not research results.
 
 ## External execution status
 
-K1 remains pending. No CUDA runtime is available locally. On 2026-10-22,
+K1 remains pending: the 31 Oct T4 run finished 33 FP16 baselines, then lm-eval ran out of
+memory, so no K1 comparison exists. No CUDA runtime is available locally. On 2026-10-22,
 computer-use access to Chrome returned “Computer Use permissions are not granted”.
 No Kaggle CLI or Kaggle API environment credentials were available. HF_TOKEN was
 not present in the process environment. No GPU experiment was submitted.

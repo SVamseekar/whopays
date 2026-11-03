@@ -100,3 +100,61 @@ def test_interrupt_stops_reference_process_before_final_checkpoint(tmp_path):
             crosscheck.run_lmeval(K1_MODEL, ['mgsm'], ['en'], tmp_path)
         proc.terminate.assert_called_once()
         sync.assert_called_once_with(tmp_path)
+
+
+def _proc():
+    proc = mock.MagicMock()
+    proc.__enter__.return_value = proc
+    proc.wait.return_value = 0
+    return proc
+
+
+def _run_reference(tmp_path, tasks=('belebele', 'mgsm'), **kwargs):
+    with (mock.patch.object(crosscheck, 'install', return_value=Path('/fake/python')),
+          mock.patch.object(crosscheck.subprocess, 'Popen', return_value=_proc()) as popen,
+          mock.patch.object(crosscheck, 'sync_lmeval', return_value=True)):
+        crosscheck.run_lmeval(K1_MODEL, list(tasks), ['en', 'te'], tmp_path, **kwargs)
+    return popen.call_args_list
+
+
+def _flag(call, name):
+    argv = call.args[0]
+    return argv[argv.index(name) + 1]
+
+
+def test_reference_tasks_run_as_separate_processes_with_their_own_batch_size(tmp_path):
+    # lm-eval keeps vocabulary logits for every position, so long Belebele contexts ran the
+    # T4 out of memory at batch 8. MGSM generation is unaffected and needs the larger batch.
+    belebele, mgsm = _run_reference(tmp_path)
+    assert _flag(belebele, '--tasks') == 'belebele_eng_Latn,belebele_tel_Telu'
+    assert _flag(belebele, '--batch_size') == str(crosscheck.LMEVAL_BATCH['belebele'])
+    assert _flag(mgsm, '--tasks') == 'mgsm_native_cot_en,mgsm_native_cot_te'
+    assert _flag(mgsm, '--batch_size') == str(crosscheck.LMEVAL_BATCH['mgsm'])
+    assert crosscheck.LMEVAL_BATCH['belebele'] < 8
+
+
+def test_reference_batch_size_override_applies_to_every_task(tmp_path):
+    calls = _run_reference(tmp_path, batch_size=1)
+    assert [_flag(c, '--batch_size') for c in calls] == ['1', '1']
+
+
+def test_reference_run_reduces_allocator_fragmentation(tmp_path):
+    call = _run_reference(tmp_path, tasks=('belebele',))[0]
+    assert call.kwargs['env']['PYTORCH_CUDA_ALLOC_CONF'] == 'expandable_segments:True'
+
+
+def test_failed_reference_task_stops_later_tasks(tmp_path):
+    failing = _proc()
+    failing.wait.return_value = 1
+    (tmp_path / 'lmeval.log').write_text('CUDA out of memory\n')
+    with (mock.patch.object(crosscheck, 'install', return_value=Path('/fake/python')),
+          mock.patch.object(crosscheck.subprocess, 'Popen', return_value=failing) as popen,
+          mock.patch.object(crosscheck, 'sync_lmeval', return_value=True),
+          pytest.raises(RuntimeError, match='out of memory')):
+        crosscheck.run_lmeval(K1_MODEL, ['belebele', 'mgsm'], ['en'], tmp_path)
+    assert popen.call_count == 1
+
+
+def test_baseline_notebook_reports_throughput_before_reference_can_fail():
+    source = (Path(__file__).parents[1] / 'notebooks/src/01_fp16_baselines.py').read_text()
+    assert source.index('throughput.summary') < source.index('crosscheck.run_lmeval')
