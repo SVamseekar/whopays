@@ -1,9 +1,10 @@
 # Autonomous implementation status
 
-Updated 2026-10-31: [repository/research review](REVIEW_2026-10-31.md) records the current
-software inventory, repaired KV/speculative paths, protocol amendment, prior-art check and
-K1 handoff. The original baseline count below describes the earlier session, not current
-verification. K1 and all subsequent GPU acceptance gates remain unverified.
+Updated 2026-11-03: H2 now has item-clustered GEE p-values, fractional budgets have
+a sensitivity-free `matched_uniform` comparator, and profile resume pins code, model
+and library identity. These are CPU specifications, not measurements.
+[repository/research review](REVIEW_2026-10-31.md) records the 31 Oct inventory.
+K1 and all subsequent GPU acceptance gates remain unverified.
 
 Started 2026-10-22 on `codex/complete-research-pipeline`.
 

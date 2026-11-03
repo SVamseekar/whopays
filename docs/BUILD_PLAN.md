@@ -52,6 +52,7 @@ first unfinished research task; no downstream experiment is authorized by a pass
 - [x] Loader: a fake-quant mode driven by a bit map. CPU verified 2026-10-31.
 - [ ] Notebook `02_replicate_uniform`. **GPU check:** FR-3 is within 2% of a GPTQModel W4 checkpoint, and the per-language gap goes in the published direction.
 - [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
+  - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
 
 ## M2 — Audit grid (weeks 5–8)
 - [x] Write and commit `PREREGISTRATION.md` (dated) from PRD §Research questions and §Statistical protocol. Prospective draft amended and committed 2026-10-31, before any M2 run. Remaining H2 inference and fractional-budget comparator specifications are explicitly open in that file.
@@ -69,11 +70,13 @@ first unfinished research task; no downstream experiment is authorized by a pass
 - [ ] `stats/bootstrap.py`, `stats/mixed.py`, `stats/shapley.py`, `stats/oaxaca.py`, `stats/inequality.py`, each tested on synthetic planted effects (FR-10, FR-11).
   - [x] CPU estimator tests and Oaxaca group-identification guard. Complete H2 interaction
     inference before claiming FR-10: variational credible intervals do not supply BH p-values.
+  - [x] H2 p-values: language-specific weight × KV Wald tests from an item-clustered binomial GEE, with BH limited to that family. The variational fit stays descriptive. GPU evidence remains absent.
 - [ ] `analysis.ipynb` and `report/figures.py`.
 - [ ] Draft the audit preprint.
 
 ## M4 — ParityQuant (weeks 11–14)
 - [ ] `parityquant/allocate.py`: the minimax MILP (PuLP + CBC), the average objective, uniform and soft-max variants. Test that the budget is met exactly.
+  - [x] CPU: `matched_uniform`, the sensitivity-free exact-budget comparator used when the target is not an allowed width. K3 remains open.
 - [ ] Notebook `06_parityquant_eval`. **GPU check, K3 gate.**
 - [ ] Optional: `parityquant/refine.py` (FR-14).
 

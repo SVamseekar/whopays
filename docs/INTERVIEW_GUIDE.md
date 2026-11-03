@@ -219,10 +219,12 @@ language-group indicator. Pooled least squares then fits both group means, mecha
 assigning the total gap to endowment and forcing the residual to zero. The protocol was
 amended before results; the implementation rejects any covariate span encoding group.
 
-**What remains unresolved?** H2 requires justified interaction p-values for BH correction.
-The current mixed logistic model is Bayesian variational inference with approximate
-credible intervals; these are not the required frequentist p-values. BH at q=0.05 must
-not be applied to fabricated substitutes.
+**How is H2 tested?** One contrast per language:
+`logit11 − logit10 − logit01 + logit00` for weight × KV. The fit is a binomial GEE
+with Mancl–DeRouen standard errors clustered by item, t(items − 1) p-values, and
+Benjamini–Hochberg at q=0.05 on that family only. These are population-averaged
+logit interactions. The variational random-intercept fit is descriptive and is not
+fed to BH. A language cell with no outcome variation stops the analysis.
 
 ## 8. Explain ParityQuant on a whiteboard
 
@@ -244,10 +246,12 @@ matching and rejects infeasible targets. PuLP/CBC runs on CPU. Average bits cove
 weights actually quantized; excluded FP16 embeddings/heads and quantizer metadata must
 be included separately when discussing whole-model storage.
 
-**What baselines?** Mean-sensitivity allocation, uniform precision where feasible,
-multilingual-calibration baselines and a softmax objective. Define a sensitivity-independent
-mixed-width comparator for fractional budgets before H4; uniform 3.5-bit precision is not
-in the bit palette. Planned budgets are 3.0, 3.5 and 4.0 average bits.
+**What baselines?** Mean-sensitivity allocation, uniform precision where the budget
+is an allowed width, multilingual-calibration baselines and a softmax objective.
+At a fractional budget such as 3.5, the sensitivity-free comparator is
+`matched_uniform`: exact total bits, minimum parameter-weighted squared deviation
+from the target average, higher widths on earlier layers when that deviation ties.
+Planned budgets are 3.0, 3.5 and 4.0 average bits.
 
 **What is the price of parity?** Mean-accuracy loss of the minimax solution minus that
 of the mean-objective allocation at matched bits. This cost and the worst-language benefit
@@ -273,8 +277,8 @@ profile/validation split are needed for honest generalization claims.
   consistent SQLite/WAL snapshots during execution; failed uploads leave local data intact.
 - Offline wheels carry the lock, use content hashes and force reinstall the package itself.
   Changed builds require fresh kernels; optional media imports are checked in subprocesses.
-- Sensitivity-profile resume still needs stronger code/model/GPU/library provenance parity
-  with the item-run harness. The existing implementation is not a complete guarantee.
+- Sensitivity-profile resume now refuses a different code version, GPU, torch,
+  transformers build, CUDA build or model identity, matching the item-run pin.
 
 ## 10. What happens next, and when would you stop?
 

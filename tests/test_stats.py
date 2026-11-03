@@ -6,7 +6,7 @@ import pytest
 
 from whopays.stats.bootstrap import benjamini_hochberg, paired_bootstrap, paired_frame_bootstrap
 from whopays.stats.inequality import atkinson, gini, inequality_summary
-from whopays.stats.mixed import fit_mixed_logistic
+from whopays.stats.mixed import fit_mixed_logistic, interaction_tests
 from whopays.stats.oaxaca import oaxaca
 from whopays.stats.shapley import pair_interactions, shapley_values
 
@@ -103,6 +103,53 @@ def test_oaxaca_planted_treatment_gap():
     assert result['treatment']['estimate'] == pytest.approx(1)
     assert result['treatment']['low'] <= 1 + 1e-12
     assert result['treatment']['high'] >= 1 - 1e-12
+
+
+def _saturated_panel(n=80):
+    """Exact cell rates: English interaction is 0; Telugu's is logit(0.8)-logit(0.2)."""
+    rates = {('en', 0, 0): 0.5, ('en', 1, 0): 0.5, ('en', 0, 1): 0.5, ('en', 1, 1): 0.5,
+             ('te', 0, 0): 0.2, ('te', 1, 0): 0.2, ('te', 0, 1): 0.2, ('te', 1, 1): 0.8}
+    rows = []
+    for item in range(n):
+        for lang in ('en', 'te'):
+            for weight, cache in itertools.product((0, 1), (0, 1)):
+                successes = int(round(rates[(lang, weight, cache)] * n))
+                rows.append((item, lang, weight, cache, int(item < successes)))
+    return pd.DataFrame(rows, columns=['item_id', 'language', 'W', 'K', 'correct'])
+
+
+def test_interaction_tests_recover_saturated_logits_and_ignore_row_order():
+    from scipy.special import logit
+
+    panel = _saturated_panel()
+    shuffled = panel.sample(frac=1, random_state=0)
+    fitted = interaction_tests(shuffled)
+    again = interaction_tests(panel)
+    tests = fitted['tests'].set_index('language')
+    expected = logit(0.8) - logit(0.2)
+    assert tests.loc['en', 'estimate'] == pytest.approx(0, abs=1e-8)
+    assert tests.loc['te', 'estimate'] == pytest.approx(expected)
+    assert tests.loc['en', 'pvalue'] > 0.99
+    assert tests.loc['te', 'p_bh'] < 0.05
+    assert tests.loc['te', 'reject'] and not tests.loc['en', 'reject']
+    assert fitted['df'] == 79
+    assert fitted['family'].startswith('language-specific')
+    assert 'Mancl' in fitted['inference_note']
+    pd.testing.assert_frame_equal(
+        fitted['tests'].reset_index(drop=True), again['tests'].reset_index(drop=True))
+
+
+def test_interaction_tests_reject_separation_and_incomplete_panels():
+    panel = _saturated_panel(n=20)
+    separated = panel.copy()
+    separated.loc[(separated.language == 'te') & (separated.W == 1) & (separated.K == 1),
+                  'correct'] = 1
+    with pytest.raises(ValueError, match='separation'):
+        interaction_tests(separated)
+    with pytest.raises(ValueError, match='incomplete'):
+        interaction_tests(panel.iloc[:-1])
+    with pytest.raises(ValueError, match='0/1'):
+        interaction_tests(panel.assign(W=2))
 
 
 def test_paired_binary_exact_pvalues():

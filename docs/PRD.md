@@ -273,7 +273,11 @@ Variants to report:
 ### Statistical protocol
 
 - **CIs:** paired bootstrap, 2,000 resamples over items, stratified by language.
-- **Interactions:** mixed-effects logistic regression `correct ~ W*K*language + (1|item)`, fitted with statsmodels on CPU.
+- **Interactions:** mean model `correct ~ W*K*language`, originally written as a
+  random-intercept logistic. **Amended 3 Nov 2026, before research runs:** confirmatory
+  p-values are language-specific weight × KV contrasts from an item-clustered binomial
+  GEE (Mancl–DeRouen SE, t on items−1, BH over that family). The variational
+  `(1|item)` fit stays descriptive. See the preregistration amendment.
 - **Multiple comparisons:** Benjamini–Hochberg at q = 0.05 across all language × config tests.
 - **Seeds:** 3 calibration-subsample seeds per quantized cell; report the seed spread.
 - **Pre-registration:** commit a dated PREREGISTRATION.md with these hypotheses and tests before M2 runs.

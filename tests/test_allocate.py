@@ -35,6 +35,36 @@ def test_uniform_and_infeasible_budget():
         allocate(s, [0, 1], 3, bits=[2, 3])
 
 
+def test_matched_uniform_ignores_sensitivity_and_breaks_ties_toward_early_layers():
+    counts = [1, 1, 1, 1]
+    bits = [3, 4]
+    sensitive = np.zeros((4, 2, 2))
+    sensitive[-1, 0, :] = 100
+    first = allocate(sensitive, counts, 3.5, bits=bits, objective='matched_uniform')
+    second = allocate(np.ones_like(sensitive), counts, 3.5, bits=bits, objective='matched_uniform')
+    assert first.bits == second.bits == (4, 4, 3, 3)
+    best = None
+    for choice in itertools.product(range(2), repeat=4):
+        selected = tuple(bits[i] for i in choice)
+        if sum(counts[j] * selected[j] for j in range(4)) != 14:
+            continue
+        deviation = sum(p * (b - 3.5) ** 2 for p, b in zip(counts, selected, strict=True)) / 4
+        tie = sum((j + 1) * b for j, b in enumerate(selected))
+        candidate = (deviation, tie, selected)
+        best = candidate if best is None or candidate < best else best
+    assert first.bits == best[2]
+    assert first.objective_value == pytest.approx(best[0])
+    # Widths 4 and 2 beat 2 and 8 on squared error, and sensitivities are not an input.
+    forced = allocate(np.zeros((2, 4, 1)), [3, 1], 3.5, bits=[2, 3, 4, 8],
+                      objective='matched_uniform')
+    assert forced.bits == (4, 2)
+    palette = allocate(np.zeros((2, 3, 1)), [3, 5], 3, bits=[2, 3, 4], objective='matched_uniform')
+    assert palette.bits == (3, 3)
+    assert palette.objective_value == 0
+    with pytest.raises(AllocationError):
+        allocate(np.zeros((1, 2, 1)), [1], 3.5, bits=[3, 4], objective='matched_uniform')
+
+
 def test_36_layer_weighted_budget_and_negative_losses():
     s = -np.random.default_rng(13).uniform(size=(36, 4, 11))
     counts = np.full(36, 1_000_000)

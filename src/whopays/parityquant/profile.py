@@ -7,9 +7,9 @@ import json
 from pathlib import Path
 
 import torch
-import transformers
 
 from whopays.config import stable_hash
+from whopays.env import env_info
 from whopays.quant.fakequant import activation_hessian, capture_block_inputs, linear_layers
 from whopays.quant.gptq import quantize_weight
 from whopays.quant.rtn import quantize
@@ -27,13 +27,27 @@ def _score(bundle, texts, batch_size):
     return loss / count
 
 
+def _model_identity(bundle):
+    """Architecture and source id, so a reused run_id cannot mix two models."""
+    config = bundle.model.config
+    return {
+        'model_type': getattr(config, 'model_type', None),
+        'name_or_path': getattr(config, 'name_or_path', None),
+        'hidden_size': getattr(config, 'hidden_size', None),
+        'num_hidden_layers': getattr(config, 'num_hidden_layers', None),
+        'vocab_size': getattr(config, 'vocab_size', None),
+    }
+
+
 @torch.no_grad()
 def profile(bundle, texts_by_language, bits=(2, 3, 4, 8), *, method='rtn',
             calibration=None, group_size=128, batch_size=8, output_path=None, run_id=None):
     """Return long-form layer × bits × language rows suitable for allocation.
 
     run_id identifies the reference model/config and is required for persistence. Resume
-    also verifies settings and texts, and trims an interrupted final JSON line.
+    verifies settings, texts, model identity and the pinned code/GPU/library environment,
+    and trims an interrupted final JSON line. A mismatch refuses the resume instead of
+    appending rows from another environment.
     """
     if method not in ('rtn', 'gptq') or (method == 'gptq' and not calibration):
         raise ValueError('expected rtn or gptq with calibration batches')
@@ -49,9 +63,12 @@ def profile(bundle, texts_by_language, bits=(2, 3, 4, 8), *, method='rtn',
         if len(parts) < 4 or parts[1] != 'layers':
             raise ValueError(f'unsupported decoder projection: {name}')
         groups.setdefault('.'.join(parts[:3]), []).append(name)
+    pinned = {key: env_info()[key]
+              for key in ('code_version', 'gpu', 'torch', 'transformers', 'cuda')}
     manifest = {'run_id': run_id, 'texts': stable_hash(texts_by_language), 'bits': list(bits),
                 'method': method, 'group_size': group_size, 'batch_size': batch_size,
                 'layers': list(groups), 'device': bundle.device, 'dtype': str(bundle.dtype),
+                'env': pinned, 'model': _model_identity(bundle),
                 'calibration': stable_hash([{k: v.tolist() for k, v in batch.items()}
                                              for batch in (calibration or [])])}
     rows = []
@@ -105,9 +122,9 @@ def profile(bundle, texts_by_language, bits=(2, 3, 4, 8), *, method='rtn',
                     nll = _score(bundle, texts_by_language[lang], batch_size)
                     row = {'run_id': run_id, 'layer': layer, 'bits': bit, 'lang': lang,
                            'baseline_nll': baseline[lang], 'nll': nll,
-                           'torch': torch.__version__, 'transformers': transformers.__version__,
-                           'gpu': (torch.cuda.get_device_name()
-                                   if bundle.device == 'cuda' else None),
+                           'torch': pinned['torch'], 'transformers': pinned['transformers'],
+                           'cuda': pinned['cuda'], 'code_version': pinned['code_version'],
+                           'gpu': pinned['gpu'],
                            'sensitivity': nll - baseline[lang],
                            'parameters': sum(layers[n].weight.numel() for n in names)}
                     if path:

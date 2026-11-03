@@ -2,6 +2,15 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-03 — H2 p-values come from item-clustered GEE, not variational tails
+Confirmatory H2 tests are language-specific weight × KV interactions on the population-averaged logit, with Mancl–DeRouen bias-reduced covariance clustered by item and t(items − 1) p-values, then Benjamini–Hochberg over that family only. Variational random-intercept standard deviations are not sampling variances, and turning them into p-values would manufacture the BH inputs the preregistration forbids. Pinned statsmodels has no frequentist binomial GLMM likelihood, and its conditional logit failed to return a covariance on the saturated within-item design, so the operational estimand is the marginal logit interaction rather than the written `(1|item)` coefficient. A cell with no outcome variation aborts the analysis instead of dropping a language. Reverse this if a pinned, frequentist item-intercept likelihood is added by a further dated amendment before any treatment results are inspected.
+
+## 2026-11-03 — Fractional budgets use a sensitivity-free matched-uniform baseline
+`matched_uniform` is the H4 comparator when the average bit budget is not an allowed width. It minimises parameter-weighted squared deviation of layer widths from the target, subject to the same exact bit total as the other objectives, and breaks ties by placing higher widths on earlier layers. It does not read the sensitivity tensor, so a 3.5-bit uniform baseline is no longer undefined and the comparison is not secretly another sensitivity policy. Uniform stays in place when the target itself is an allowed width. Reverse it only for another sensitivity-free rule that is also unique at every feasible budget and is declared before allocation results are inspected.
+
+## 2026-11-03 — Profile resume uses the item-run environment pin
+A sensitivity profile may resume only when the manifest matches the texts, settings, model identity, code version, GPU, torch, transformers and CUDA build. Item runs already refuse to mix those fields; profile resume previously checked texts and settings only, so a later environment could append rows to an earlier file. Rows now record the same pinned versions. An old manifest without these fields does not match and must start a new file. Reverse the pin only if a signed artifact manifest replaces code and library identity.
+
 ## 2026-10-31 — Dated technical map with a readable interview reference
 Create an explanatory poster and companion interview guide from the specification, current
 code and latest user-shared Colab log. Separate CPU implementation checks, partial GPU job

@@ -71,6 +71,24 @@ def test_profile_restores_weights_and_resumes(tiny_model_dir, tmp_path):
                            output_path=path, run_id='test')
     with pytest.raises(ValueError, match='manifest'):
         profile(b, {'en': ['changed']}, bits=(2,), output_path=path, run_id='test')
+    import json
+
+    meta = json.loads(path.with_suffix('.manifest.json').read_text())
+    assert meta['env']['code_version']
+    assert meta['model']['num_hidden_layers'] == b.model.config.num_hidden_layers
+    from whopays.parityquant import profile as profiler
+    original = profiler.env_info
+    profiler.env_info = lambda: {**original(), 'code_version': 'not-this-checkout'}
+    try:
+        with pytest.raises(ValueError, match='manifest'):
+            profile(b, {'en': ['the river'], 'de': ['Das Wetter']}, bits=(2,),
+                    output_path=path, run_id='test')
+    finally:
+        profiler.env_info = original
+    b.model.config.num_hidden_layers += 1
+    with pytest.raises(ValueError, match='manifest'):
+        profile(b, {'en': ['the river'], 'de': ['Das Wetter']}, bits=(2,),
+                output_path=path, run_id='test')
 
 
 def test_gptq_improves_tiny_qwen_projection(tiny_model_dir):

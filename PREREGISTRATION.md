@@ -73,4 +73,36 @@ Two specifications still need resolution before the relevant analyses: the curre
 variational mixed logistic implementation yields credible intervals, not the frequentist
 interaction p-values required for H2/BH; a uniform baseline cannot express a fractional
 average bit budget, so the sensitivity-independent matched-budget comparator must be
-defined before H4 evaluation. Neither requirement is considered complete.
+defined before H4 evaluation. Neither requirement is considered complete in this
+31 Oct amendment. Both are specified by the 3 Nov amendment below.
+
+## Amendment — 2026-11-03, before research results
+
+H2's confirmatory family is one test per language of the weight × KV interaction
+on the logit of item correctness. The mean formula remains
+`correct ~ W * K * language`. Item dependence uses a binomial GEE with an
+independence working correlation and the Mancl–DeRouen bias-reduced covariance
+clustered by item. The contrast in language l is
+logit(W=1,K=1,l) − logit(W=1,K=0,l) − logit(W=0,K=1,l) + logit(W=0,K=0,l).
+Two-sided p-values use a t reference with degrees of freedom equal to the number
+of items minus one. Benjamini–Hochberg at q=0.05 applies to this family only.
+If any of the four cells in a language has no outcome variation, the logit
+interaction is undefined and the analysis stops; that language is not dropped.
+The variational random-intercept fit stays a descriptive conditional summary and
+is not an input to BH.
+
+This is the population-averaged logit interaction, not the conditional
+coefficient of `correct ~ W*K*language + (1|item)`. The pinned statsmodels
+release has no frequentist likelihood for that binomial GLMM. Its conditional
+logit, the fixed-item-intercept alternative, did not return a covariance on this
+saturated within-item design. The substitution is declared here, before any M2
+result is analysed. A later frequentist GLMM likelihood can replace the GEE
+p-values only by a further dated amendment.
+
+H4's sensitivity-independent comparator is `matched_uniform`. Among assignments
+that meet the exact parameter-weighted bit budget, it minimises the
+parameter-weighted mean squared deviation of layer widths from the target
+average. Ties break toward higher widths on earlier layers. The objective does
+not read sensitivities. Uniform remains the comparator when the target is an
+allowed width. At 3.5 bits, uniform is undefined and `matched_uniform` is the
+baseline. Minimax, average and softmax remain the sensitivity-using objectives.
