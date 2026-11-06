@@ -128,3 +128,22 @@ the labelled sequential control only after that gate passes on a T4.
 
 **Oaxaca covariates.** Item length is the English token count of the parallel item, so it
 carries no token premium. Token count is the language's own count for that item.
+
+## Third amendment — 2026-11-06, before research results
+
+K1 passed on 2026-11-06. No quantized, KV or speculative result exists; the results dataset
+holds FP16 baselines, the lm-eval reference and two labelled smoke runs only.
+
+**Compute.** Logged FP16 throughput projects the 1,188-run audit at 80.1 T4 GPU-hours against
+the PRD's 60. Calibration language and the three subsample seeds now replicate on 1.5B
+Belebele only. 3B runs the 12 quality cells (four weight levels × three cache policies) on
+Belebele and MGSM at multilingual calibration, seed 0. The audit becomes 858 runs and about
+61 GPU-hours, of which 1.4 are FP16 baselines already logged.
+
+**Why this cut.** H1 to H3 and the Shapley attribution need every cell of each factorial on both
+models, and this keeps them. Calibration language is not a confirmatory hypothesis. A 3B
+calibration contrast would need its own seed spread to be interpretable, and that spread is
+the cost being removed. Dropping 3B MGSM eviction instead would remove a cell of the weight ×
+eviction factorial that H2 names as its leading candidate. 3B calibration effects are out of
+scope and are not reported.
+

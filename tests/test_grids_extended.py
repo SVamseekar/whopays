@@ -14,16 +14,29 @@ from whopays.grids import (
     speed_subset,
     write_slices,
 )
+from whopays.languages import CODES
 
 
 def test_audit_crosses_calibration_seeds_and_all_languages():
     jobs = load_jobs(audit_grid())
     assert len({j.run_id for j in jobs}) == len(jobs)
-    for model in {j.model for j in jobs}:
-        sub = [j for j in jobs if j.model == model and j.task == 'belebele' and j.lang == 'en']
-        assert len(sub) == 3 * (2 + 2 * 2 * 3)
-        assert {j.kv for j in sub} == {'full', 'quant4', 'evict'}
-        assert {j.seed for j in sub if j.weight == 'w4_gptq'} == {0, 1, 2}
+    assert {j.lang for j in jobs} == set(CODES)
+    sub = [j for j in jobs
+           if j.model == QWEN['1.5B'] and j.task == 'belebele' and j.lang == 'en']
+    assert len(sub) == 3 * (2 + 2 * 2 * 3)
+    assert {j.kv for j in sub} == {'full', 'quant4', 'evict'}
+    assert {j.seed for j in sub if j.weight == 'w4_gptq'} == {0, 1, 2}
+
+
+def test_audit_3b_keeps_the_full_factorial_without_replication():
+    # Third amendment (2026-11-06): calibration and seed repeats run on 1.5B only.
+    jobs = [j for j in load_jobs(audit_grid()) if j.model == QWEN['3B'] and j.lang == 'en']
+    for task in ('belebele', 'mgsm'):
+        sub = [j for j in jobs if j.task == task]
+        assert len(sub) == 12  # 4 weights x 3 KV policies
+        assert {(j.calib, j.seed) for j in sub if j.weight in ('w4_gptq', 'w3_gptq')} == {
+            ('multi', 0)}
+    assert len(load_jobs(audit_grid())) == 11 * (42 + 12 + 12 + 12)
 
 
 def test_speed_pairs_same_subset_and_configuration():

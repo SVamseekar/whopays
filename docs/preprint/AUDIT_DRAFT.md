@@ -16,7 +16,7 @@ Serving teams routinely combine weight quantization, KV-cache compression and sp
 
 **Factors.**
 - Weights: FP16, W8 RTN, W4 GPTQ and W3 GPTQ. Quantization is fake: weights are quantized and dequantized to FP16, so memory savings are computed from bit counts and never measured.
-- Calibration: English or a multilingual mix, with three subsample seeds, replicated on Belebele.
+- Calibration: English or a multilingual mix, with three subsample seeds, replicated on 1.5B Belebele only. 3B and MGSM use multilingual calibration, seed 0.
 - KV cache: full, 4-bit quantized, or eviction to a fixed 256-token budget that keeps the first 4 tokens and the most recent tokens. The policy applies to the context before the question is scored, so it never sees the question.
 - Speculative decoding: off, or greedy with four draft tokens. Output must equal plain greedy token for token; any difference is treated as a harness bug.
 

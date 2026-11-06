@@ -78,7 +78,7 @@ experiment is authorized by a passing unit test alone.
   - [ ] Multilingual T4 exactness gate (notebook 05), then set the flag.
 - [ ] `configs/` generator for the 12-cell × 2-model grid, plus job-list slices sized at ≤ 10 h each.
   - [x] CPU: `whopays.cli grid` writes the job lists; `whopays.cli plan` projects GPU-hours and writes slices from logged baselines.
-  - [ ] Run `plan` on the logged baselines and write slices. **Blocked on the user's audit cut:** logged rates project the full audit at 80.1 GPU-hours against 60 budgeted, before GPTQ loading and with 3B assumed at 2× 1.5B (DECISIONS 2026-11-06).
+  - [x] Audit cut and slices (2026-11-06): calibration and seed replication on 1.5B only (third preregistration amendment); 858 runs, about 61 projected GPU-hours; `configs/audit_slice_00`–`06`. GPTQ load time is unmeasured (DECISIONS 2026-11-06).
 - [x] Notebooks `04_audit_grid` and `05_speed_grid` built. CPU only; each needs a K1 pass to run.
 
 ## M3 — Decomposition (weeks 9–10, M1 only)

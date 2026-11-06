@@ -47,12 +47,18 @@ def replication_grid(models: Sequence[str] = (QWEN["1.5B"],),
 
 def audit_grid(models: Sequence[str] = (QWEN["1.5B"], QWEN["3B"]),
                tasks: Sequence[str] = ("belebele", "mgsm"),
-               limit: int | None = None) -> list[dict]:
-    """12 quality cells per model; calibration and seed replication only on Belebele (PRD)."""
+               limit: int | None = None,
+               replicate: Sequence[str] = (QWEN["1.5B"],)) -> list[dict]:
+    """12 quality cells per model and task.
+
+    Calibration language and seed replication run on Belebele only (second amendment) and
+    only for models in `replicate` (third amendment, 2026-11-06: 1.5B).
+    """
     jobs = []
     for m in models:
         for t in tasks:
-            cells = _weight_cells() if t == "belebele" else _primary_cells()
+            cells = (_weight_cells() if t == "belebele" and m in replicate
+                     else _primary_cells())
             jobs += [{"model": m, "task": t, "lang": "all", "kv": kv, "limit": limit, **w}
                      for w in cells for kv in ("full", "quant4", "evict")]
     return jobs
