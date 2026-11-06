@@ -18,11 +18,14 @@ Platform = Literal["colab", "kaggle", "local"]
 
 
 def platform() -> Platform:
-    """Detect Colab, Kaggle or local from environment variables both services set."""
-    if "COLAB_RELEASE_TAG" in os.environ or "COLAB_GPU" in os.environ:
-        return "colab"
+    """Detect Colab, Kaggle or local from environment variables both services set.
+
+    Kaggle is checked first: its images are built on Colab's and also set COLAB_RELEASE_TAG.
+    """
     if "KAGGLE_KERNEL_RUN_TYPE" in os.environ or "KAGGLE_URL_BASE" in os.environ:
         return "kaggle"
+    if "COLAB_RELEASE_TAG" in os.environ or "COLAB_GPU" in os.environ:
+        return "colab"
     return "local"
 
 

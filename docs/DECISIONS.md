@@ -2,6 +2,9 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-06 — Detect Kaggle before Colab
+A Kaggle T4×2 session printed `platform: colab` and then `secret HF_TOKEN not available (TimeoutException)`. Kaggle's notebook image is built on Colab's and also sets `COLAB_RELEASE_TAG`, so the setup cell asked Colab's `userdata` for the token, which timed out. Both `whopays.env.platform()` and the generated setup cell now check `KAGGLE_KERNEL_RUN_TYPE` first. Without this, Kaggle runs get no `HF_TOKEN`, cannot pull finished runs and cannot push results. Reverse only if Colab itself starts setting Kaggle's variables.
+
 ## 2026-11-03 — Pin PuLP below 4 on every Python
 The lock resolved PuLP 3.3.2 on Python 3.11 and 4.0.1 on 3.12 and later. PuLP 4 removed `PULP_CBC_CMD` and the bundled CBC binary and changed the `LpVariable` constructor, so the allocator failed on Python 3.12 in CI from `2ad1821` onward, and would have failed on Kaggle. Local tests passed because the M1 runs 3.11, and the branch had no CI until it was pushed. Cap `pulp<4` so every platform solves with the same PuLP and CBC, which also keeps allocation reproducible. Reverse by moving to `pulp[cbc]` with `COIN_CMD` and `add_variable` on all Pythons, once there is a reason to.
 

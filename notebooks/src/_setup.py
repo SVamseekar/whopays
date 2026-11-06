@@ -21,8 +21,9 @@ if (len(WHOPAYS_WHEEL) >= 2 and WHOPAYS_WHEEL[0] in "\"'"
         and WHOPAYS_WHEEL[-1] == WHOPAYS_WHEEL[0]):
     WHOPAYS_WHEEL = WHOPAYS_WHEEL[1:-1]
 
-PLATFORM = ("colab" if "COLAB_RELEASE_TAG" in os.environ
-            else "kaggle" if "KAGGLE_KERNEL_RUN_TYPE" in os.environ else "local")
+# Kaggle first: Kaggle images are built on Colab's and also set COLAB_RELEASE_TAG.
+PLATFORM = ("kaggle" if "KAGGLE_KERNEL_RUN_TYPE" in os.environ
+            else "colab" if "COLAB_RELEASE_TAG" in os.environ else "local")
 _gpu = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
                       capture_output=True, text=True)
 if _gpu.returncode != 0:

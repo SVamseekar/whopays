@@ -2,6 +2,7 @@
 
 import hashlib
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def execute_setup(monkeypatch, tmp_path, *, include_lock=True, changed_loaded_build=False,
-                  path_form='{path}'):
+                  path_form='{path}', platform_env=(), namespace=None):
     wheel = tmp_path / 'whopays-0.1.0-py3-none-any.whl'
     with zipfile.ZipFile(wheel, 'w') as archive:
         if include_lock:
@@ -34,12 +35,14 @@ def execute_setup(monkeypatch, tmp_path, *, include_lock=True, changed_loaded_bu
     monkeypatch.delenv('KAGGLE_KERNEL_RUN_TYPE', raising=False)
     monkeypatch.delenv('GH_TOKEN', raising=False)
     monkeypatch.delenv('HF_TOKEN', raising=False)
+    for var in platform_env:
+        monkeypatch.setenv(var, 'x')
     code = 'wheel:sha256:' + hashlib.sha256(wheel.read_bytes()).hexdigest()
     monkeypatch.setenv('WHOPAYS_CODE_VERSION', 'old-build' if changed_loaded_build else code)
     monkeypatch.setattr(subprocess, 'run', command)
     monkeypatch.setattr(env, 'prepare_text_runtime', lambda: False)
     monkeypatch.setattr(env, 'print_env', lambda: None)
-    namespace = {}
+    namespace = {} if namespace is None else namespace
     exec(compile(source, str(ROOT / 'notebooks/src/_setup.py'), 'exec'), namespace)
     return wheel, calls
 
@@ -78,3 +81,13 @@ def test_colab_form_tolerates_pasted_quotes(monkeypatch, tmp_path, path_form):
     wheel, calls = execute_setup(monkeypatch, tmp_path, path_form=path_form)
     reinstall = next(args for args in calls if '--force-reinstall' in args)
     assert reinstall[-1] == str(wheel)
+
+
+def test_kaggle_wins_over_colab_variables(monkeypatch, tmp_path):
+    # Kaggle images are built on Colab's, so they also set COLAB_RELEASE_TAG; reading
+    # Colab secrets there times out and leaves HF_TOKEN unset.
+    namespace = {}
+    monkeypatch.setitem(sys.modules, 'kaggle_secrets', None)
+    execute_setup(monkeypatch, tmp_path, namespace=namespace,
+                  platform_env=('COLAB_RELEASE_TAG', 'KAGGLE_KERNEL_RUN_TYPE'))
+    assert namespace['PLATFORM'] == 'kaggle'

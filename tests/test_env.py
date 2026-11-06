@@ -24,6 +24,13 @@ def test_platform(monkeypatch, var, expected):
     assert env.platform() == expected
 
 
+def test_kaggle_image_with_colab_variables_is_kaggle(monkeypatch):
+    # Kaggle's images are built on Colab's and set COLAB_RELEASE_TAG too.
+    monkeypatch.setenv("COLAB_RELEASE_TAG", "x")
+    monkeypatch.setenv("KAGGLE_KERNEL_RUN_TYPE", "Batch")
+    assert env.platform() == "kaggle"
+
+
 @pytest.mark.parametrize(
     ("var", "root"),
     [
