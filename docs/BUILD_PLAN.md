@@ -4,8 +4,9 @@ This is an ordered task list for Claude Code. Take the first unchecked task, fin
 
 **31 Oct 2026 reconciliation:** software existed beyond the checked milestones in the
 starting working tree. See [the repository/research review](REVIEW_2026-10-31.md).
-CPU implementation checks below do not complete GPU acceptance gates. K1 remains the
-first unfinished research task; no downstream experiment is authorized by a passing unit test.
+CPU implementation checks below do not complete GPU acceptance gates. K1 passed on
+2026-11-06; the compute re-plan is now the first unfinished research task. No downstream
+experiment is authorized by a passing unit test alone.
 
 ## M0 — Harness (weeks 1–2, Oct 26 – Nov 8)
 
@@ -29,7 +30,7 @@ first unfinished research task; no downstream experiment is authorized by a pass
 - [x] `tokens/premium.py`: token premium table for 11 languages on Belebele passages.
 - [x] `cli.py smoke`: 0.5B on MPS, 20 Belebele items × 2 languages, under 3 minutes on the M1.
 - [x] Notebook `00_env_check` (built 2026-10-21; 4 Colab runs; all 12 checks pass on the fourth, 2026-10-21. Answers in `DECISIONS.md`).
-- [ ] Notebook `01_fp16_baselines` (built 2026-10-21: `grids.py`, `crosscheck.py`, `throughput.py`; awaiting the Colab run). **GPU check, K1 gate:** FP16 within 1 point of lm-evaluation-harness, plus measured throughput. Re-plan the compute budget if throughput is more than 2× slower than assumed.
+- [x] Notebook `01_fp16_baselines` (built 2026-10-21; **K1 PASS on Kaggle T4, 2026-11-06**, commit `200cea5`; see DECISIONS 2026-11-06). **GPU check, K1 gate:** FP16 within 1 point of lm-evaluation-harness, plus measured throughput. Re-plan the compute budget if throughput is more than 2× slower than assumed.
   - [x] CPU reliability follow-up: stop on baseline errors, checkpoint consistent live
     lm-eval SQLite caches, compare the unrounded throughput ratio; regenerate notebook 01.
   - Latest Colab T4 attempt stopped in setup because the wheel form value contained
@@ -50,6 +51,9 @@ first unfinished research task; no downstream experiment is authorized by a pass
   - Start-stamp estimates (not the gate figure): MGSM about 76 min against 30 assumed;
     Belebele about 30 min against 15. The gate uses summed `wall_time_s`; if it exceeds 2×,
     re-plan the compute budget before M2.
+  - 2026-11-06 Kaggle T4 run: K1 PASS. Belebele mean |ours − lm-eval| 0.11 points (max 0.33),
+    MGSM 0.80 (max 1.60, German). Logged throughput: Belebele 18.7 GPU-min (1.25× assumed),
+    MGSM 68.1 (2.27× assumed, so `replan` is true), FLORES 7.2. The re-plan is the next task.
 
 ## M1 — Replicate + probe (weeks 3–4)
 - [x] `quant/rtn.py` and `quant/fakequant.py`: group-wise asymmetric RTN with a per-layer bit map. Unit-test the reconstruction error bounds. CPU verified 2026-10-31.
@@ -74,7 +78,7 @@ first unfinished research task; no downstream experiment is authorized by a pass
   - [ ] Multilingual T4 exactness gate (notebook 05), then set the flag.
 - [ ] `configs/` generator for the 12-cell × 2-model grid, plus job-list slices sized at ≤ 10 h each.
   - [x] CPU: `whopays.cli grid` writes the job lists; `whopays.cli plan` projects GPU-hours and writes slices from logged baselines.
-  - [ ] Run `plan` on the logged baselines and write slices. **Blocked:** needs K1 rows and a compute re-plan; the audit projects to about 108 h against 60 h budgeted (DECISIONS 2026-11-03).
+  - [ ] Run `plan` on the logged baselines and write slices. **Blocked on the user's audit cut:** logged rates project the full audit at 80.1 GPU-hours against 60 budgeted, before GPTQ loading and with 3B assumed at 2× 1.5B (DECISIONS 2026-11-06).
 - [x] Notebooks `04_audit_grid` and `05_speed_grid` built. CPU only; each needs a K1 pass to run.
 
 ## M3 — Decomposition (weeks 9–10, M1 only)
