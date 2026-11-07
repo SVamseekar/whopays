@@ -41,15 +41,19 @@ def probe_texts(limit: int = 100, languages: Iterable[str] = CODES) -> dict[str,
     return texts
 
 
-def _calibration(tokenizer, calib: str, seed: int):
-    from whopays.quant.calibration import calibration_batches, sample_calibration
+CALIB_SOURCE = "wikipedia_128x2048"  # the quantizer's calibration source (fourth amendment)
 
-    return calibration_batches(tokenizer, sample_calibration(calib, seed))
+
+def _calibration(tokenizer, calib: str, seed: int):
+    from whopays.quant.calibration import batches_for
+
+    return batches_for(tokenizer, CALIB_SOURCE, calib, seed)[0]
 
 
 def _folder(model: str, bits, method: str, limit: int, calib: str, seed: int) -> str:
     return "probe-" + stable_hash({"model": model, "bits": list(bits), "method": method,
-                                   "limit": limit, "calib": calib, "seed": seed})
+                                   "limit": limit, "calib": calib, "seed": seed,
+                                   "calib_source": CALIB_SOURCE})
 
 
 def load_profile(root: Path, model: str, *, bits=(2, 3, 4, 8), method: str = "gptq",

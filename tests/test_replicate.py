@@ -40,11 +40,72 @@ def test_fr3_refuses_mismatched_items():
     assert replicate.fr3_verdict(_nll(3, 2.0), theirs)[1]['FR3'] == 'INCOMPLETE'
 
 
-def test_reference_jobs_use_the_real_checkpoint_everywhere():
+def test_primary_reference_is_gptqmodel_on_our_calibration():
     jobs = replicate.reference_jobs(K1_MODEL)
+    assert {j.weight for j in jobs} == {'w4_gptqmodel'} and {j.task for j in jobs} == {'flores_nll'}
+    assert {j.lang for j in jobs} == set(CODES)
+    assert {(j.model, j.calib, j.seed, j.calib_source) for j in jobs} == {
+        (K1_MODEL, 'multi', 0, 'wikipedia_128x2048')}
+    ours = replicate.fr3_jobs(K1_MODEL)
+    assert {(j.weight, j.calib, j.seed, j.calib_source) for j in ours} == {
+        ('w4_gptq', 'multi', 0, 'wikipedia_128x2048')}
+    assert {j.model_key() for j in jobs} != {j.model_key() for j in ours}
+
+
+def test_official_checkpoint_is_a_secondary_reference():
+    jobs = replicate.reference_jobs(K1_MODEL, kind='official')
     assert {j.weight for j in jobs} == {'prequant'} and {j.task for j in jobs} == {'flores_nll'}
     assert {j.lang for j in jobs} == set(CODES)
     assert all(j.model.endswith('GPTQ-Int4') for j in jobs)
+    with pytest.raises(ValueError):
+        replicate.reference_jobs(K1_MODEL, kind='other')
+
+
+def test_gptqmodel_settings_match_our_quantizer():
+    # Classic GPTQ as in our quant/gptq.py: asymmetric, no act-order, no GPTQModel extras.
+    cfg = replicate.GPTQMODEL_CONFIG
+    assert cfg == {'bits': 4, 'group_size': 128, 'sym': False, 'desc_act': False,
+                   'act_group_aware': False, 'damp_percent': 0.01, 'static_groups': False,
+                   'mse': 0.0, 'true_sequential': True}
+
+
+def test_gptqmodel_quantization_is_cached_and_uses_our_windows(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    import torch
+
+    from whopays.config import RunConfig
+
+    calls = {}
+
+    class FakeModel:
+        def quantize(self, calibration, batch_size):
+            calls['calibration'] = calibration
+            calls['batch_size'] = batch_size
+
+        def save(self, path):
+            Path(path).mkdir(parents=True, exist_ok=True)
+            (Path(path) / 'model.safetensors').write_text('x')
+
+    fake = types.SimpleNamespace(
+        QuantizeConfig=lambda **kw: calls.setdefault('config', kw),
+        GPTQModel=types.SimpleNamespace(load=lambda name, quantize_config: (
+            calls.setdefault('loaded', name), FakeModel())[1]))
+    monkeypatch.setitem(sys.modules, 'gptqmodel', fake)
+    batch = {'input_ids': torch.tensor([[5, 6, 7]])}
+    prov = {'sha256': 'abc'}
+    monkeypatch.setattr('whopays.quant.calibration.batches_for',
+                        lambda tok, source, mode, seed: ([batch], prov))
+    cfg = RunConfig(model=K1_MODEL, task='flores_nll', lang='en', weight='w4_gptqmodel',
+                    calib='multi')
+    path, got = replicate.quantize_with_gptqmodel(cfg, tokenizer=None, cache=tmp_path)
+    assert got == prov and (path / 'DONE').exists()
+    assert calls['calibration'] == [{'input_ids': [5, 6, 7], 'attention_mask': [1, 1, 1]}]
+    assert calls['config'] == replicate.GPTQMODEL_CONFIG and calls['loaded'] == K1_MODEL
+    calls.clear()
+    again, _ = replicate.quantize_with_gptqmodel(cfg, tokenizer=None, cache=tmp_path)
+    assert again == path and not calls  # reused, not re-quantized
 
 
 def test_reference_runs_in_an_isolated_environment(tmp_path):

@@ -116,3 +116,26 @@ def test_load_jobs_accepts_objects_and_dicts():
 
 
 PINNED_FP16_TE = "8531f57a9dfb"
+
+
+def test_calibration_source_changes_only_calibrated_run_ids():
+    from whopays.config import LEGACY_CALIB_SOURCE
+
+    w4 = RunConfig(**BASE, weight="w4_gptq", calib="multi")
+    legacy = RunConfig(**BASE, weight="w4_gptq", calib="multi",
+                       calib_source=LEGACY_CALIB_SOURCE)
+    assert w4.calib_source == "wikipedia_128x2048"
+    assert w4.run_id != legacy.run_id and w4.model_key() != legacy.model_key()
+    # Runs made before the field existed keep their IDs under the legacy value.
+    assert "calib_source" not in legacy.canonical()
+    assert RunConfig(**BASE, calib_source=LEGACY_CALIB_SOURCE).run_id == PINNED_FP16_TE
+    assert RunConfig(**BASE, weight="w8_rtn").run_id == RunConfig(
+        **BASE, weight="w8_rtn", calib_source=LEGACY_CALIB_SOURCE).run_id
+
+
+def test_fp16_baselines_keep_their_logged_run_ids():
+    from whopays.config import load_jobs
+    from whopays.grids import K1_MODEL, m0_fp16
+
+    ids = {c.run_id for c in load_jobs(m0_fp16([K1_MODEL]))}
+    assert {"a0fc2d0018cc", "b3cbde1ac3c0", "2e3ea51a8f75"} <= ids

@@ -220,3 +220,21 @@ def test_bitmap_provenance_is_json_string(tmp_path, fake_task, loader):
     df = pd.read_parquet(tmp_path / r.run_id / 'items.parquet')
     assert json.loads(df.bitmap.iloc[0]) == {'layer': 4}
     assert json.loads(df.config_json.iloc[0]) == cfg.canonical()
+
+
+def test_gptq_runs_release_their_calibration_provenance(tmp_path, monkeypatch):
+    from whopays.models.loader import ModelBundle
+
+    def task(cfg, bundle, skip):
+        yield {"item_id": "x", "correct": True}
+
+    monkeypatch.setitem(tasks._REGISTRY, "belebele", task)
+    prov = {"source": "wikimedia/wikipedia", "sha256": "abc", "tokens": 262144}
+    loader = mock.Mock(return_value=ModelBundle(model=None, tokenizer=None, device="cpu",
+                                                dtype=None, quantization={"calibration": prov}))
+    [res] = run([{**BASE, "lang": "te", "weight": "w4_gptq", "calib": "multi"}],
+                root=tmp_path, loader=loader, sync=False)
+    run_dir = tmp_path / res.run_id
+    assert json.loads((run_dir / "calibration.json").read_text()) == prov
+    row = pd.read_parquet(run_dir / "items.parquet").iloc[0]
+    assert row.calib_sha256 == "abc" and row.calib_source == "wikipedia_128x2048"

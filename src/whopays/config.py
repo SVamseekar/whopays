@@ -24,13 +24,18 @@ SCHEMA_VERSION = 1
 DEFAULT_DRAFT = "Qwen/Qwen2.5-0.5B-Instruct"
 ALLOWED_BITS = {2, 3, 4, 8}
 
-Weight = Literal["fp16", "w8_rtn", "w4_gptq", "w3_gptq", "bitmap", "prequant"]
+# w4_gptqmodel: real GPTQModel quantization on our calibration windows (FR-3 reference only).
+Weight = Literal["fp16", "w8_rtn", "w4_gptq", "w3_gptq", "bitmap", "prequant", "w4_gptqmodel"]
 Calib = Literal["none", "en", "multi"]
+# GPTQ calibration data (quant/calibration.py). The legacy source is dropped from the canonical
+# form, so runs made before this field existed keep their IDs.
+CalibSource = Literal["wikipedia_128x2048", "flores_dev_sentences"]
+LEGACY_CALIB_SOURCE = "flores_dev_sentences"
 KVPolicy = Literal["full", "quant4", "evict"]
 Task = Literal["belebele", "mgsm", "flores_nll"]
 
-CALIBRATED: set[str] = {"w4_gptq", "w3_gptq", "bitmap"}
-GROUPED: set[str] = {"w8_rtn", "w4_gptq", "w3_gptq", "bitmap"}
+CALIBRATED: set[str] = {"w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
+GROUPED: set[str] = {"w8_rtn", "w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
 # Execution details: never part of the hash, so a smaller batch on a smaller GPU resumes the run.
 EXEC_FIELDS = {"batch_size", "tag"}
 
@@ -45,6 +50,7 @@ class RunConfig(BaseModel):
     weight: Weight = "fp16"
     group_size: int = Field(128, gt=0)
     calib: Calib = "none"
+    calib_source: CalibSource = "wikipedia_128x2048"
     seed: int = Field(0, ge=0)
     bitmap: dict[str, int] | None = None  # layer name -> bits, for weight="bitmap"
     budget: float | None = None  # average bits the bitmap was solved for (provenance)
@@ -90,6 +96,8 @@ class RunConfig(BaseModel):
             del d["group_size"]
         if self.weight not in CALIBRATED:
             del d["seed"]
+        if self.weight not in CALIBRATED or self.calib_source == LEGACY_CALIB_SOURCE:
+            del d["calib_source"]
         if self.weight != "bitmap":
             del d["bitmap"], d["budget"]
         if self.kv != "evict":
@@ -105,8 +113,8 @@ class RunConfig(BaseModel):
     def model_key(self) -> str:
         """Identity of the loaded weights (plus draft), shared across tasks, languages, KV."""
         d = self.canonical()
-        keep = {"schema_version", "model", "weight", "group_size", "calib", "seed", "bitmap",
-                "draft_model"}
+        keep = {"schema_version", "model", "weight", "group_size", "calib", "calib_source",
+                "seed", "bitmap", "draft_model"}
         return stable_hash({k: v for k, v in d.items() if k in keep})
 
     def to_yaml(self) -> str:

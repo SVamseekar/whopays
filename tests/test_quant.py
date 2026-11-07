@@ -124,3 +124,36 @@ def test_profile_restores_on_scoring_failure(tiny_model_dir, monkeypatch):
     with pytest.raises(RuntimeError, match='interrupted'):
         profiler.profile(b, {'en': ['test']}, bits=(2,))
     assert all(torch.equal(v, before[k]) for k, v in b.model.state_dict().items())
+
+
+@torch.no_grad()
+def _legacy_gptq(model, bits, batches, group_size):
+    """The pre-2026-11-07 path: recapture each block's inputs from the partly quantized model
+    and quantize one projection at a time. The faster path must reproduce it."""
+    from whopays.quant import fakequant as fq
+    layers = fq.linear_layers(model)
+    modules = dict(model.named_modules())
+    current, captured = None, None
+    for name, module in layers.items():
+        block_name = '.'.join(name.split('.')[:3])
+        block = modules[block_name]
+        if block_name != current:
+            captured = fq.capture_block_inputs(model, block, batches)
+            current = block_name
+        h = fq.activation_hessian(model, module, batches, block=block, captured=captured)
+        module.weight.copy_(quantize_weight(module.weight, h, bits, group_size))
+
+
+def test_gptq_apply_matches_per_block_recapture(tiny_model_dir):
+    from whopays.config import RunConfig
+    from whopays.models.loader import load
+    from whopays.quant.fakequant import apply
+    torch.manual_seed(0)
+    cfg = RunConfig(model=str(tiny_model_dir), task='belebele', lang='en')
+    fast, slow = load(cfg, 'cpu').model, load(cfg, 'cpu').model
+    batches = [{'input_ids': torch.randint(1, 200, (1, 48)),
+                'attention_mask': torch.ones(1, 48, dtype=torch.long)} for _ in range(3)]
+    apply(fast, 3, method='gptq', calibration=batches, group_size=16)
+    _legacy_gptq(slow, 3, batches, 16)
+    for (name, a), (_, b) in zip(fast.named_parameters(), slow.named_parameters(), strict=True):
+        assert torch.allclose(a, b, atol=1e-5, rtol=0), name

@@ -3,6 +3,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -20,6 +21,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -37,6 +39,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -54,6 +57,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -71,6 +75,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -88,6 +93,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -105,6 +111,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -122,6 +129,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict
@@ -139,6 +147,7 @@ jobs:
   bitmap: null
   budget: null
   calib: multi
+  calib_source: wikipedia_128x2048
   draft_model: null
   group_size: 128
   kv: evict

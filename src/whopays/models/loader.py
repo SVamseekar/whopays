@@ -54,6 +54,18 @@ def load(cfg: RunConfig, device: str | None = None, *, calibration=None) -> Mode
         except ImportError as exc:
             raise ImportError("install GPTQModel in its isolated reference environment") from exc
         model = GPTQModel.load(cfg.model, backend=BACKEND.GPTQ_TORCH).model.eval()
+    elif cfg.weight == "w4_gptqmodel":
+        if device != "cuda":
+            raise ValueError("GPTQModel quantization requires CUDA")
+        try:
+            from gptqmodel import BACKEND, GPTQModel
+        except ImportError as exc:
+            raise ImportError("install GPTQModel in its isolated reference environment") from exc
+        from whopays.replicate import quantize_with_gptqmodel
+        path, provenance = quantize_with_gptqmodel(cfg, tokenizer)
+        model = GPTQModel.load(str(path), backend=BACKEND.GPTQ_TORCH).model.eval()
+        return ModelBundle(model=model, tokenizer=tokenizer, device=device, dtype=dtype,
+                           quantization={"method": "gptqmodel", "calibration": provenance})
     else:
         model = _load_causal_lm(cfg.model, device, dtype)
     quantization = None
@@ -61,11 +73,15 @@ def load(cfg: RunConfig, device: str | None = None, *, calibration=None) -> Mode
         from whopays.quant.fakequant import apply
         method = "rtn" if cfg.weight == "w8_rtn" else "gptq"
         bits = cfg.bitmap if cfg.weight == "bitmap" else int(cfg.weight[1])
+        provenance = None
         if method == "gptq" and calibration is None:
-            from whopays.quant.calibration import calibration_batches, sample_calibration
-            calibration = calibration_batches(tokenizer, sample_calibration(cfg.calib, cfg.seed))
+            from whopays.quant.calibration import batches_for
+            calibration, provenance = batches_for(tokenizer, cfg.calib_source, cfg.calib,
+                                                  cfg.seed)
         quantization = apply(model, bits, method=method, calibration=calibration,
                              group_size=cfg.group_size)
+        if provenance is not None:
+            quantization["calibration"] = provenance
     draft = _load_causal_lm(cfg.draft_model, device, dtype) if cfg.spec else None
     return ModelBundle(model=model, tokenizer=tokenizer, device=device, dtype=dtype, draft=draft,
                        quantization=quantization)

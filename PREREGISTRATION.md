@@ -147,3 +147,27 @@ the cost being removed. Dropping 3B MGSM eviction instead would remove a cell of
 eviction factorial that H2 names as its leading candidate. 3B calibration effects are out of
 scope and are not reported.
 
+## Fourth amendment — 2026-11-07, after the FR-3 replication result, before audit results
+
+**Disclosure.** This amendment follows a failed FR-3 check. On 2026-11-06 notebook 02 ran the
+1.5B replication grid. Our W4 differed from Qwen's official GPTQ-Int4 checkpoint by 7.5% mean
+FLORES devtest perplexity (limit 2%). Those W4 and W3 replication runs are superseded, kept in
+the results dataset and reported as a deviation. No audit (M2) result exists.
+
+**Calibration data.** GPTQ calibration changes from 128 single FLORES dev sentences (a few
+thousand tokens, below the 8,960 inputs of the widest layer, so its Hessians were
+rank-deficient) to 128 windows of 2,048 tokens (262,144 tokens). The windows come from native-language Wikipedia
+(`wikimedia/wikipedia`, dump 20231101, pinned commit `b04c8d1c`), using at most 512 tokens per
+article. English and multilingual sets have equal token budgets. The multilingual set gives each
+of the 11 languages 11 or 12 windows; the seed rotates the remainder. Seeds select the shard, row
+groups and articles. FLORES dev is no longer used for calibration. FLORES devtest stays the
+held-out NLL set.
+
+**FR-3 reference.** The primary reference is GPTQModel 7.6.0 quantizing the same model on the
+same windows. Its settings are pinned to ours: asymmetric, group 128, no act-order, no
+group-aware reordering, damping 0.01, true-sequential. The pass rule is unchanged: mean
+absolute perplexity gap ≤ 2%. The official checkpoint is reported descriptively only.
+
+**Unchanged.** Hypotheses, grids, budgets, gates and analysis are unchanged. Every GPTQ cell
+runs with the new calibration. FP16 and W8 RTN runs do not use calibration and are reused.
+

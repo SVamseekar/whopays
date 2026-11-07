@@ -101,6 +101,83 @@ def activation_hessian(model, module, batches, *, block=None, captured=None):
     return h / count
 
 
+# Projections whose inputs do not depend on each other, quantized after one shared pass, as in
+# GPTQ's true-sequential order (and GPTQModel's): attention inputs, attention output, MLP
+# inputs, MLP output. Projections not listed get a stage of their own, in module order.
+STAGES = (("self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"), ("self_attn.o_proj",),
+          ("mlp.gate_proj", "mlp.up_proj"), ("mlp.down_proj",))
+
+
+def _stages(block_name, names):
+    local = [n[len(block_name) + 1:] for n in names]
+    stages = [[f"{block_name}.{m}" for m in stage if m in local] for stage in STAGES]
+    known = {m for stage in STAGES for m in stage}
+    stages += [[f"{block_name}.{m}"] for m in local if m not in known]
+    return [s for s in stages if s]
+
+
+def _hessian_hook(hessians, counts, name):
+    def hook(module, args):
+        x = args[0].detach().reshape(-1, module.in_features).float()
+        hessians[name].addmm_(x.T, x)
+        counts[name] += len(x)
+    return hook
+
+
+@torch.no_grad()
+def _gptq_blocks(model, bitmap, calibration, group_size):
+    """Layer-by-layer GPTQ: capture the first block's inputs once, then feed each quantized
+    block's outputs to the next (Frantar et al., 2023). Equivalent to recapturing every
+    block's inputs from the partly quantized model, at one forward pass instead of L."""
+    layers = linear_layers(model)
+    blocks: dict[str, list[str]] = {}
+    for name in bitmap:
+        parts = name.split('.')
+        if len(parts) < 4 or not parts[2].isdigit():
+            raise ValueError(f'GPTQ supports decoder-block projections only: {name}')
+        blocks.setdefault('.'.join(parts[:3]), []).append(name)
+    order = sorted(blocks, key=lambda b: int(b.split('.')[2]))
+    kinds = {getattr(model.get_submodule(b), 'attention_type', None) for b in order}
+    if len(kinds) > 1:
+        raise ValueError('blocks with different attention types need per-block masks')
+    first = model.get_submodule(order[0])
+    device = next(first.parameters()).device
+    inputs = [(_move(a, device), _move(k, device))
+              for a, k in capture_block_inputs(model, first, calibration)]
+    for index, block_name in enumerate(order):
+        block = model.get_submodule(block_name)
+        if index and int(block_name.split('.')[2]) != int(order[index - 1].split('.')[2]) + 1:
+            raise ValueError('GPTQ blocks must be consecutive to propagate inputs')
+        for stage in _stages(block_name, blocks[block_name]):
+            hessians = {n: torch.zeros(layers[n].in_features, layers[n].in_features,
+                                       device=layers[n].weight.device, dtype=torch.float32)
+                        for n in stage}
+            counts = dict.fromkeys(stage, 0)
+
+            hooks = [layers[n].register_forward_pre_hook(_hessian_hook(hessians, counts, n))
+                     for n in stage]
+            try:
+                for args, kwargs in inputs:
+                    block(*args, **kwargs)
+            finally:
+                for hook in hooks:
+                    hook.remove()
+            for n in stage:
+                if not counts[n]:
+                    raise ValueError(f'empty calibration activations for {n}')
+                h = hessians.pop(n) / counts[n]
+                layers[n].weight.copy_(quantize_weight(layers[n].weight, h, bitmap[n],
+                                                       group_size))
+                del h
+        if index + 1 < len(order):
+            outputs = []
+            for args, kwargs in inputs:
+                out = block(*args, **kwargs)
+                hidden = out[0] if isinstance(out, tuple) else out
+                outputs.append(((hidden, *args[1:]), kwargs))
+            inputs = outputs
+
+
 @torch.no_grad()
 def apply(model, bits, method='rtn', calibration=None, group_size=128):
     bitmap = resolve_bitmap(model, bits)
@@ -109,22 +186,11 @@ def apply(model, bits, method='rtn', calibration=None, group_size=128):
     if method == 'gptq' and not calibration:
         raise ValueError('GPTQ requires calibration batches')
     layers = linear_layers(model)
-    modules = dict(model.named_modules())
-    current_block, captured = None, None
-    for name, bit in bitmap.items():
-        module = layers[name]
-        block_name = '.'.join(name.split('.')[:3])
-        block = modules.get(block_name)
-        if method == 'gptq' and block is not None and block_name != current_block:
-            captured = capture_block_inputs(model, block, calibration)
-            current_block = block_name
-        if method == 'gptq':
-            h = activation_hessian(model, module, calibration, block=block, captured=captured)
-            q = quantize_weight(module.weight, h, bit, group_size)
-            del h
-        else:
-            q = quantize(module.weight, bit, group_size)
-        module.weight.copy_(q)
+    if method == 'gptq':
+        _gptq_blocks(model, bitmap, calibration, group_size)
+    else:
+        for name, bit in bitmap.items():
+            layers[name].weight.copy_(quantize(layers[name].weight, bit, group_size))
     quantized = sum(layers[n].weight.numel() for n in bitmap)
     total = sum(p.numel() for p in model.parameters())
     return {'bitmap': bitmap, 'method': method, 'memory_kind': 'computed_weight_bits',

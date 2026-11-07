@@ -132,6 +132,9 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
     config_path.write_text(cfg.to_yaml())
     task = get_task(cfg.task)
     bundle = models.get(cfg)
+    calibration = (getattr(bundle, "quantization", None) or {}).get("calibration")
+    if calibration:  # released with the results (Williams & Aletras, 2024)
+        (run_dir / "calibration.json").write_text(json.dumps(calibration, indent=1) + "\n")
 
     info = env_info()
     provenance = cfg.model_dump(mode="json", exclude={"tag"})
@@ -139,6 +142,8 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
     provenance["config_json"] = canonical_json(cfg.canonical())
     stamp = {**provenance, "run_id": run_id, "task": cfg.task, "lang": cfg.lang,
              **{k: info[k] for k in ROW_ENV}}
+    if calibration and "sha256" in calibration:
+        stamp["calib_sha256"] = calibration["sha256"]
     push = hub_sync.ThrottledPush(run_dir, sync_interval) if sync else None
     with ResultsWriter(run_dir / ITEMS, flush_every, on_flush=push) as writer:
         for row in task(cfg, bundle, writer.done_ids()):
