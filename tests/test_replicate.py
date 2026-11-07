@@ -106,6 +106,19 @@ def test_gptqmodel_quantization_is_cached_and_uses_our_windows(tmp_path, monkeyp
     calls.clear()
     again, _ = replicate.quantize_with_gptqmodel(cfg, tokenizer=None, cache=tmp_path)
     assert again == path and not calls  # reused, not re-quantized
+    (path / 'model.safetensors').write_text('tampered')
+    with pytest.raises(ValueError, match='changed'):
+        replicate.quantize_with_gptqmodel(cfg, tokenizer=None, cache=tmp_path)
+
+
+def test_gptqmodel_cache_must_be_private(tmp_path):
+    shared = tmp_path / 'shared'
+    shared.mkdir()
+    shared.chmod(0o777)
+    with pytest.raises(PermissionError, match='writable'):
+        replicate._private_dir(shared)
+    replicate._private_dir(tmp_path / 'fresh')
+    assert (tmp_path / 'fresh').stat().st_mode & 0o777 == 0o700
 
 
 def test_reference_runs_in_an_isolated_environment(tmp_path):

@@ -67,9 +67,15 @@ def quantize_with_gptqmodel(cfg: RunConfig, tokenizer, cache: Path | None = None
 
     from whopays.quant.calibration import batches_for
 
-    cache = Path(cache or os.environ.get("WHOPAYS_GPTQMODEL_CACHE", "/tmp/whopays-gptqmodel"))
+    default = Path.home() / ".cache" / "whopays" / "gptqmodel"
+    cache = Path(cache or os.environ.get("WHOPAYS_GPTQMODEL_CACHE", default))
+    _private_dir(cache)
     out = cache / cfg.model_key()
     if (out / "DONE").exists():
+        done = json.loads((out / "DONE").read_text())
+        if done.get("weights") != _weights_digest(out):
+            raise ValueError(f"cached GPTQModel weights in {out} changed since quantization; "
+                             "delete the folder to re-quantize")
         return out, json.loads((out / "calibration.json").read_text())
     from gptqmodel import GPTQModel, QuantizeConfig
 
@@ -81,8 +87,35 @@ def quantize_with_gptqmodel(cfg: RunConfig, tokenizer, cache: Path | None = None
                    batch_size=1)
     model.save(str(out))
     (out / "calibration.json").write_text(json.dumps(provenance) + "\n")
-    (out / "DONE").write_text(json.dumps({"gptqmodel": settings}) + "\n")
+    (out / "DONE").write_text(json.dumps({"gptqmodel": settings,
+                                          "weights": _weights_digest(out)}) + "\n")
     return out, provenance
+
+
+def _private_dir(path: Path) -> None:
+    """Create or accept a cache folder only this user can write; loaded weights come from it."""
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = path.stat()
+    if hasattr(os, "getuid") and info.st_uid != os.getuid():
+        raise PermissionError(f"{path} is owned by another user")
+    if info.st_mode & 0o022:
+        raise PermissionError(f"{path} is writable by group or others")
+
+
+def _weights_digest(folder: Path) -> str:
+    """SHA-256 over the checkpoint's safetensors files, in name order."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    files = sorted(folder.glob("*.safetensors"))
+    if not files:
+        raise ValueError(f"no safetensors weights in {folder}")
+    for f in files:
+        digest.update(f.name.encode())
+        with f.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(2**20), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
 
 
 def install() -> Path:
