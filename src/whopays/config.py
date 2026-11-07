@@ -34,6 +34,10 @@ LEGACY_CALIB_SOURCE = "flores_dev_sentences"
 KVPolicy = Literal["full", "quant4", "evict"]
 Task = Literal["belebele", "mgsm", "flores_nll"]
 
+# Version of the w4_gptqmodel recipe (replicate.GPTQMODEL_CONFIG plus load dtype). Recipe 1
+# (bf16, v1 asymmetric zeros, 2026-11-07) is dropped from the canonical form, so its runs keep
+# their IDs as a record; recipe 2 (FP16, gptq_v2) gets new ones.
+GPTQMODEL_RECIPE = 2
 CALIBRATED: set[str] = {"w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
 GROUPED: set[str] = {"w8_rtn", "w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
 # Execution details: never part of the hash, so a smaller batch on a smaller GPU resumes the run.
@@ -98,6 +102,8 @@ class RunConfig(BaseModel):
             del d["seed"]
         if self.weight not in CALIBRATED or self.calib_source == LEGACY_CALIB_SOURCE:
             del d["calib_source"]
+        if self.weight == "w4_gptqmodel" and GPTQMODEL_RECIPE > 1:
+            d["gptqmodel_recipe"] = GPTQMODEL_RECIPE
         if self.weight != "bitmap":
             del d["bitmap"], d["budget"]
         if self.kv != "evict":
@@ -114,7 +120,7 @@ class RunConfig(BaseModel):
         """Identity of the loaded weights (plus draft), shared across tasks, languages, KV."""
         d = self.canonical()
         keep = {"schema_version", "model", "weight", "group_size", "calib", "calib_source",
-                "seed", "bitmap", "draft_model"}
+                "seed", "bitmap", "draft_model", "gptqmodel_recipe"}
         return stable_hash({k: v for k, v in d.items() if k in keep})
 
     def to_yaml(self) -> str:

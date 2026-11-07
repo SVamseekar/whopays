@@ -30,9 +30,12 @@ GPTQMODEL_VERSION = "7.6.0"
 # GPTQModel 7.6 defaults differ from classic GPTQ: act_group_aware (GAR reordering) is on for
 # GPTQ, sym is True and damp_percent is method-dependent. Pin every setting to match
 # quant/gptq.py: asymmetric, group 128, no act-order, damping 0.01, true-sequential.
+# format gptq_v2: the v1 "gptq" layout stores zero points minus one, which overflows for
+# asymmetric groups (GPTQModel 7.6.0, quantization/config.py "v2 format fixed sym = False
+# quantization"; utils/model.py "v1 checkpoint format with sym=False ... will overflow").
 GPTQMODEL_CONFIG = {"bits": 4, "group_size": 128, "sym": False, "desc_act": False,
                     "act_group_aware": False, "damp_percent": 0.01, "static_groups": False,
-                    "mse": 0.0, "true_sequential": True}
+                    "mse": 0.0, "true_sequential": True, "format": "gptq_v2"}
 FR3_CALIB = {"calib": "multi", "seed": 0, "calib_source": "wikipedia_128x2048"}
 TOLERANCE_PCT = 2.0
 COLUMNS = ["lang", "ours", "reference", "abs_pct", "flag"]
@@ -58,8 +61,11 @@ def reference_jobs(model: str, kind: str = "gptqmodel") -> list[RunConfig]:
     raise ValueError("reference kind must be 'gptqmodel' or 'official'")
 
 
-def quantize_with_gptqmodel(cfg: RunConfig, tokenizer, cache: Path | None = None):
+def quantize_with_gptqmodel(cfg: RunConfig, tokenizer, cache: Path | None = None,
+                            dtype=None):
     """Quantize cfg.model with GPTQModel on our calibration windows; reuse a finished result.
+
+    Runs in ``dtype`` (FP16 by default, as every other T4 run), not the config's bfloat16.
 
     Returns the checkpoint directory and the calibration provenance.
     """
@@ -77,17 +83,21 @@ def quantize_with_gptqmodel(cfg: RunConfig, tokenizer, cache: Path | None = None
             raise ValueError(f"cached GPTQModel weights in {out} changed since quantization; "
                              "delete the folder to re-quantize")
         return out, json.loads((out / "calibration.json").read_text())
+    import torch
     from gptqmodel import GPTQModel, QuantizeConfig
+
+    dtype = dtype or torch.float16
 
     batches, provenance = batches_for(tokenizer, cfg.calib_source, cfg.calib, cfg.seed)
     settings = {**GPTQMODEL_CONFIG, "group_size": cfg.group_size}
-    model = GPTQModel.load(cfg.model, quantize_config=QuantizeConfig(**settings))
+    model = GPTQModel.load(cfg.model, quantize_config=QuantizeConfig(**settings),
+                           dtype=dtype)
     model.quantize([{"input_ids": b["input_ids"][0].tolist(),
                      "attention_mask": [1] * b["input_ids"].shape[1]} for b in batches],
                    batch_size=1)
     model.save(str(out))
     (out / "calibration.json").write_text(json.dumps(provenance) + "\n")
-    (out / "DONE").write_text(json.dumps({"gptqmodel": settings,
+    (out / "DONE").write_text(json.dumps({"gptqmodel": settings, "dtype": str(dtype),
                                           "weights": _weights_digest(out)}) + "\n")
     return out, provenance
 

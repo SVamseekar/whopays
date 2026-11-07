@@ -171,3 +171,9 @@ absolute perplexity gap ≤ 2%. The official checkpoint is reported descriptivel
 **Unchanged.** Hypotheses, grids, budgets, gates and analysis are unchanged. Every GPTQ cell
 runs with the new calibration. FP16 and W8 RTN runs do not use calibration and are reused.
 
+**Correction, 2026-11-07, after the first FR-3 run under this amendment.** That run failed
+(mean gap 4.32%). The GPTQModel reference had run in bfloat16 and saved its asymmetric zero
+points in the v1 format, which GPTQModel's own source says overflows. The reference now runs in
+FP16 and saves `gptq_v2`; its runs get new IDs and the earlier ones are kept as superseded. Our
+quantizer, the calibration and the 2% rule are unchanged.
+

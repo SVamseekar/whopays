@@ -66,7 +66,16 @@ def test_gptqmodel_settings_match_our_quantizer():
     cfg = replicate.GPTQMODEL_CONFIG
     assert cfg == {'bits': 4, 'group_size': 128, 'sym': False, 'desc_act': False,
                    'act_group_aware': False, 'damp_percent': 0.01, 'static_groups': False,
-                   'mse': 0.0, 'true_sequential': True}
+                   'mse': 0.0, 'true_sequential': True, 'format': 'gptq_v2'}
+
+
+def test_gptqmodel_reference_ids_moved_off_the_bf16_v1_run():
+    # The 2026-11-07 reference (bf16, v1 asymmetric zeros) is superseded; ours keep their IDs.
+    ref = replicate.reference_jobs(K1_MODEL)
+    assert {j.lang: j.run_id for j in ref}['en'] != '8e8544b892fa'
+    assert {j.lang: j.run_id for j in replicate.fr3_jobs(K1_MODEL)}['en'] == '7f6a3aa0fa4b'
+    official = replicate.reference_jobs(K1_MODEL, kind='official')
+    assert {j.lang: j.run_id for j in official}['en'] == '31c65f4ac746'
 
 
 def test_gptqmodel_quantization_is_cached_and_uses_our_windows(tmp_path, monkeypatch):
@@ -90,8 +99,8 @@ def test_gptqmodel_quantization_is_cached_and_uses_our_windows(tmp_path, monkeyp
 
     fake = types.SimpleNamespace(
         QuantizeConfig=lambda **kw: calls.setdefault('config', kw),
-        GPTQModel=types.SimpleNamespace(load=lambda name, quantize_config: (
-            calls.setdefault('loaded', name), FakeModel())[1]))
+        GPTQModel=types.SimpleNamespace(load=lambda name, quantize_config, dtype: (
+            calls.setdefault('loaded', (name, dtype)), FakeModel())[1]))
     monkeypatch.setitem(sys.modules, 'gptqmodel', fake)
     batch = {'input_ids': torch.tensor([[5, 6, 7]])}
     prov = {'sha256': 'abc'}
@@ -102,7 +111,8 @@ def test_gptqmodel_quantization_is_cached_and_uses_our_windows(tmp_path, monkeyp
     path, got = replicate.quantize_with_gptqmodel(cfg, tokenizer=None, cache=tmp_path)
     assert got == prov and (path / 'DONE').exists()
     assert calls['calibration'] == [{'input_ids': [5, 6, 7], 'attention_mask': [1, 1, 1]}]
-    assert calls['config'] == replicate.GPTQMODEL_CONFIG and calls['loaded'] == K1_MODEL
+    assert calls['config'] == replicate.GPTQMODEL_CONFIG
+    assert calls['loaded'] == (K1_MODEL, torch.float16)
     calls.clear()
     again, _ = replicate.quantize_with_gptqmodel(cfg, tokenizer=None, cache=tmp_path)
     assert again == path and not calls  # reused, not re-quantized

@@ -40,6 +40,23 @@ def _load_causal_lm(name: str, device: str, dtype: torch.dtype):
     return model.to(device).eval()
 
 
+def _load_gptqmodel(path: str, dtype: torch.dtype):
+    """Load a GPTQ checkpoint with GPTQModel's torch kernel in the run dtype.
+
+    GPTQModel 7.6 otherwise takes the dtype from the model config (bfloat16 for Qwen2.5),
+    which the T4 does not support natively and which differs from every other run.
+    """
+    try:
+        from gptqmodel import BACKEND, GPTQModel
+    except ImportError as exc:
+        raise ImportError("install GPTQModel in its isolated reference environment") from exc
+    model = GPTQModel.load(path, backend=BACKEND.GPTQ_TORCH, dtype=dtype).model.eval()
+    got = model.get_input_embeddings().weight.dtype
+    if got != dtype:
+        raise RuntimeError(f"GPTQModel loaded {path} in {got}, expected {dtype}")
+    return model
+
+
 def load(cfg: RunConfig, device: str | None = None, *, calibration=None) -> ModelBundle:
     from transformers import AutoTokenizer
 
@@ -49,21 +66,13 @@ def load(cfg: RunConfig, device: str | None = None, *, calibration=None) -> Mode
     if cfg.weight == "prequant":
         if device != "cuda":
             raise ValueError("real GPTQ checkpoints require CUDA; use fake quantization locally")
-        try:
-            from gptqmodel import BACKEND, GPTQModel
-        except ImportError as exc:
-            raise ImportError("install GPTQModel in its isolated reference environment") from exc
-        model = GPTQModel.load(cfg.model, backend=BACKEND.GPTQ_TORCH).model.eval()
+        model = _load_gptqmodel(cfg.model, dtype)
     elif cfg.weight == "w4_gptqmodel":
         if device != "cuda":
             raise ValueError("GPTQModel quantization requires CUDA")
-        try:
-            from gptqmodel import BACKEND, GPTQModel
-        except ImportError as exc:
-            raise ImportError("install GPTQModel in its isolated reference environment") from exc
         from whopays.replicate import quantize_with_gptqmodel
-        path, provenance = quantize_with_gptqmodel(cfg, tokenizer)
-        model = GPTQModel.load(str(path), backend=BACKEND.GPTQ_TORCH).model.eval()
+        path, provenance = quantize_with_gptqmodel(cfg, tokenizer, dtype=dtype)
+        model = _load_gptqmodel(str(path), dtype)
         return ModelBundle(model=model, tokenizer=tokenizer, device=device, dtype=dtype,
                            quantization={"method": "gptqmodel", "calibration": provenance})
     else:
