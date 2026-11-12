@@ -123,3 +123,34 @@ def test_qwen_tokenizer_splits_every_item_cleanly():
             context, query = bb.build_prompt(item)
             ctx_ids, q_ids = bb.split_tokens(tok, context, query)
             assert ctx_ids + q_ids == tok(context + query)["input_ids"]
+
+
+def shared_passage_items():
+    out = []
+    for p, passage in enumerate(["The archive sits by the bridge in the old river town.",
+                                 "Farmers moved the market to the hill after the flood."]):
+        for q, question in enumerate(["Where is it?", "What moved?", "Why did it change?"]):
+            out.append({**ITEM, "item_id": f"p{p}-q{q}", "passage": passage,
+                        "question": question, "gold": q % 4})
+    return out
+
+
+@pytest.mark.parametrize("kv", ["full", "evict"])
+def test_prefill_reuse_is_bit_identical_to_fresh_prefill(bundle, tiny_model_dir, kv):
+    cfg = cfg_for(tiny_model_dir, kv=kv, kv_budget=8)
+    letters = bb.letter_token_ids(bundle.tokenizer)
+    rows = list(bb.score_items(cfg, bundle, shared_passage_items(), set()))
+    assert [r["prefill_reused"] for r in rows] == [False, True, True] * 2
+    for item, row in zip(shared_passage_items(), rows, strict=True):
+        ctx, q = bb.split_tokens(bundle.tokenizer, *bb.build_prompt(item))
+        fresh, kept = bb.score_item(bundle, cfg, ctx, q, letters)
+        assert [round(x, 6) for x in fresh] == row["letter_logprobs"]
+        assert kept == row["kept_context_tokens"]
+
+
+def test_prefill_reuse_survives_skipped_items(bundle, tiny_model_dir):
+    cfg = cfg_for(tiny_model_dir)
+    full = {r["item_id"]: r for r in bb.score_items(cfg, bundle, shared_passage_items(), set())}
+    part = list(bb.score_items(cfg, bundle, shared_passage_items(), {"p0-q0", "p1-q1"}))
+    for row in part:
+        assert row["letter_logprobs"] == full[row["item_id"]]["letter_logprobs"]

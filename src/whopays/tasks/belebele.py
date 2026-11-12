@@ -12,6 +12,7 @@ single-pass ones.
 
 from __future__ import annotations
 
+import copy
 import time
 from collections.abc import Iterator, Sequence
 
@@ -57,31 +58,59 @@ def _sync(device: str) -> None:
         torch.mps.synchronize()
 
 
+# Questions that share a passage share its prefilled cache. The context forward pass and the
+# policy depend only on the context tokens, so reusing a copy gives exactly the cache a fresh
+# prefill would (tests check bit identity); it saves 31-33% of Belebele tokens (900 questions
+# over 488 passages per language, measured with the Qwen2.5 tokenizer, DECISIONS 2026-11-12).
+# This is automatic prefix caching (vLLM docs, design/prefix_caching). The quantized cache is
+# excluded: its HQQ state is not plain tensors, so it is always prefilled afresh.
+REUSABLE_KV = {"full", "evict"}
+
+
+@torch.no_grad()
+def prefill(bundle, cfg: RunConfig, ctx_ids: list[int]):
+    """Context pass plus KV policy; returns (cache, context positions kept)."""
+    cache = new_cache(cfg, bundle.model)
+    bundle.model(torch.tensor([ctx_ids], device=bundle.device), past_key_values=cache,
+                 use_cache=True)
+    return cache, after_prefill(cache, cfg)
+
+
+@torch.no_grad()
+def query(bundle, cache, n_ctx: int, q_ids: list[int], letters: list[int]) -> list[float]:
+    dev = bundle.device
+    # Original positions continue after the full context even if the policy evicted some.
+    pos = torch.arange(n_ctx, n_ctx + len(q_ids), device=dev)[None]
+    out = bundle.model(torch.tensor([q_ids], device=dev), past_key_values=cache,
+                       position_ids=pos, use_cache=True)
+    return out.logits[0, -1].float().log_softmax(-1)[letters].tolist()
+
+
 @torch.no_grad()
 def score_item(bundle, cfg: RunConfig, ctx_ids: list[int], q_ids: list[int],
                letters: list[int]) -> tuple[list[float], int]:
     """Letter log-probabilities (over the full vocabulary) and context positions kept."""
-    model, dev = bundle.model, bundle.device
-    cache = new_cache(cfg, model)
-    model(torch.tensor([ctx_ids], device=dev), past_key_values=cache, use_cache=True)
-    kept = after_prefill(cache, cfg)
-    # Original positions continue after the full context even if the policy evicted some.
-    pos = torch.arange(len(ctx_ids), len(ctx_ids) + len(q_ids), device=dev)[None]
-    out = model(torch.tensor([q_ids], device=dev), past_key_values=cache, position_ids=pos,
-                use_cache=True)
-    logprobs = out.logits[0, -1].float().log_softmax(-1)
-    return logprobs[letters].tolist(), kept
+    cache, kept = prefill(bundle, cfg, ctx_ids)
+    return query(bundle, cache, len(ctx_ids), q_ids, letters), kept
 
 
 def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -> Iterator[dict]:
     letters = letter_token_ids(bundle.tokenizer)
+    shared_ctx, shared_cache, shared_kept = None, None, 0
     for item in items:
         if item["item_id"] in skip:
             continue
         ctx_ids, q_ids = split_tokens(bundle.tokenizer, *build_prompt(item))
         _sync(bundle.device)
         start = time.perf_counter()
-        lp, kept = score_item(bundle, cfg, ctx_ids, q_ids, letters)
+        reused = cfg.kv in REUSABLE_KV and ctx_ids == shared_ctx
+        if not reused:
+            cache, kept = prefill(bundle, cfg, ctx_ids)
+            if cfg.kv in REUSABLE_KV:
+                shared_ctx, shared_cache, shared_kept = ctx_ids, copy.deepcopy(cache), kept
+        else:
+            cache, kept = copy.deepcopy(shared_cache), shared_kept
+        lp = query(bundle, cache, len(ctx_ids), q_ids, letters)
         _sync(bundle.device)
         pred = int(np.argmax(lp))
         yield {
@@ -95,6 +124,7 @@ def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -
             "query_tokens": len(q_ids),
             "input_tokens": len(ctx_ids) + len(q_ids),
             "kept_context_tokens": kept,
+            "prefill_reused": reused,
             "wall_time_s": round(time.perf_counter() - start, 4),
         }
 
