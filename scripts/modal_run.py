@@ -11,7 +11,7 @@ Outputs are the same as a single-process run: each chunk uses the same code, bat
 (verified by digest) the same quantized weights.
 
 The commit must be on GitHub (the image installs it). Needs `modal token new` and the secret
-`whopays-hf` holding HF_TOKEN; `--no-hf` skips it for smoke tests.
+`whopays-hf` holding HF_TOKEN.
 """
 
 from __future__ import annotations
@@ -51,7 +51,6 @@ def main() -> int:
     j.add_argument("--chunk-minutes", type=float, default=60.0)
     j.add_argument("--no-sync", action="store_true")
     j.add_argument("--dry-run", action="store_true", help="print the plan only")
-    parser.add_argument("--no-hf", action="store_true", help="run without the HF secret")
     parser.add_argument("--ref", help="commit to install (default: HEAD, must be on origin)")
     args = parser.parse_args()
 
@@ -63,16 +62,17 @@ def main() -> int:
     from kaggle_run import _head_on_origin
 
     os.environ["WHOPAYS_SHA"] = args.ref or _head_on_origin()
-    os.environ["WHOPAYS_MODAL_HF"] = "0" if args.no_hf else "1"
     import modal
     import modal_app
 
     with modal.enable_output(), modal_app.app.run():
+        # Fail fast: a container that cannot start would otherwise be retried, and billed,
+        # until the local process is stopped.
         if args.cmd == "env":
-            print(modal_app.environment.remote())
+            print(modal_app.environment.spawn().get(timeout=20 * 60))
             return 0
         if args.cmd == "notebook":
-            return modal_app.notebook.remote(args.name)
+            return modal_app.notebook.spawn(args.name).get(timeout=12 * 3600)
         first, rest = _plan(args.spec, args.chunk_minutes)
         failed = 0
         for phase, chunks in (("quantize", first), ("evaluate", rest)):

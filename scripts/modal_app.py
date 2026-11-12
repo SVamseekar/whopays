@@ -45,13 +45,12 @@ image = (
 )
 
 
-def _secrets(with_hf: bool) -> list:
-    return [modal.Secret.from_name("whopays-hf")] if with_hf else []
-
-
-WITH_HF = os.environ.get("WHOPAYS_MODAL_HF", "1") == "1"
-COMMON = dict(image=image, gpu=GPU, volumes={"/results": volume}, secrets=_secrets(WITH_HF),
-              max_containers=10)
+# Function dependencies must be identical when the app is defined locally and inside the
+# container, or every container fails at startup ("Function has 3 dependencies but container
+# got 2 object ids") and Modal keeps starting new ones. So nothing here may depend on
+# environment variables that differ between the M1 and the container.
+COMMON = dict(image=image, gpu=GPU, volumes={"/results": volume},
+              secrets=[modal.Secret.from_name("whopays-hf")], max_containers=10)
 
 
 @app.function(timeout=20 * 60, **COMMON)
