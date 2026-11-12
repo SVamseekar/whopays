@@ -67,7 +67,7 @@ def main() -> int:
     import modal
     import modal_app
 
-    with modal.enable_output(), modal_app.app.run():
+    with modal.enable_output(), modal_app.app.run(detach=True):
         # Fail fast: a container that cannot start would otherwise be retried, and billed,
         # until the local process is stopped.
         if args.cmd == "env":
