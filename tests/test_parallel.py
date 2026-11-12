@@ -102,3 +102,24 @@ def test_run_parallel_can_leave_failures_to_the_caller(tmp_path):
 
     with mock.patch.object(subprocess, "Popen", side_effect=fake_popen):
         assert parallel.run_parallel(_jobs(), gpus=2, workdir=tmp_path, check=False) == [1, 1]
+
+
+def test_chunks_cover_jobs_once_and_stay_within_one_model_group():
+    jobs = _jobs("Qwen/Qwen2.5-3B-Instruct")
+    chunks = parallel.chunk_jobs(jobs, target_minutes=10)
+    ids = [c.run_id for chunk in chunks for c in chunk]
+    assert sorted(ids) == sorted(c.run_id for c in jobs)
+    for chunk in chunks:
+        assert len({c.model_key() for c in chunk}) == 1
+
+
+def test_chunks_respect_the_target_unless_one_job_is_bigger():
+    jobs = _jobs("Qwen/Qwen2.5-3B-Instruct")
+    for chunk in parallel.chunk_jobs(jobs, target_minutes=10):
+        work = sum(parallel.job_cost(c) for c in chunk)
+        assert work <= 10 or len(chunk) == 1
+
+
+def test_large_target_keeps_whole_groups():
+    jobs = _jobs()
+    assert len(parallel.chunk_jobs(jobs, target_minutes=10_000)) == len(parallel.group_costs(jobs))

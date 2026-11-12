@@ -78,7 +78,10 @@ def load(cfg: RunConfig, device: str | None = None, *, calibration=None) -> Mode
     else:
         model = _load_causal_lm(cfg.model, device, dtype)
     quantization = None
-    if cfg.weight in {"w8_rtn", "w4_gptq", "w3_gptq", "bitmap"}:
+    cache = _cache_dir(cfg) if calibration is None and cfg.weight != "w8_rtn" else None
+    if cache is not None and (cache / "quantization.json").exists():
+        quantization = _load_cached(model, cache)
+    elif cfg.weight in {"w8_rtn", "w4_gptq", "w3_gptq", "bitmap"}:
         from whopays.quant.fakequant import apply
         method = "rtn" if cfg.weight == "w8_rtn" else "gptq"
         bits = cfg.bitmap if cfg.weight == "bitmap" else int(cfg.weight[1])
@@ -91,6 +94,68 @@ def load(cfg: RunConfig, device: str | None = None, *, calibration=None) -> Mode
                              group_size=cfg.group_size)
         if provenance is not None:
             quantization["calibration"] = provenance
+        if cache is not None:
+            _save_cached(model, quantization, cache)
     draft = _load_causal_lm(cfg.draft_model, device, dtype) if cfg.spec else None
     return ModelBundle(model=model, tokenizer=tokenizer, device=device, dtype=dtype, draft=draft,
                        quantization=quantization)
+
+
+def _cache_dir(cfg: RunConfig):
+    """Folder for this model key's quantized weights, or None when caching is off.
+
+    Set WHOPAYS_QUANT_CACHE (Modal sets it to a Volume) to quantize each model key once and
+    reuse the exact weights in every later process. The folder name also carries the torch and
+    transformers versions, so a different software stack never reuses weights it did not make.
+    """
+    import os
+    from pathlib import Path
+
+    import transformers
+
+    root = os.environ.get("WHOPAYS_QUANT_CACHE")
+    if not root or cfg.weight not in {"w4_gptq", "w3_gptq", "bitmap"}:
+        return None
+    stack = f"torch-{torch.__version__}_transformers-{transformers.__version__}"
+    return Path(root) / stack / cfg.model_key()
+
+
+def _save_cached(model, quantization: dict, cache) -> None:
+    import json
+    import os
+    import tempfile
+
+    from safetensors.torch import save_file
+
+    from whopays.quant.fakequant import linear_layers
+
+    layers = linear_layers(model)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache.parent, prefix=".tmp-")
+    save_file({n: layers[n].weight.detach().cpu().contiguous() for n in quantization["bitmap"]},
+              os.path.join(tmp, "weights.safetensors"))
+    with open(os.path.join(tmp, "quantization.json"), "w") as f:
+        json.dump(quantization, f, sort_keys=True)
+    try:
+        os.rename(tmp, cache)  # atomic: a concurrent writer of the same key loses harmlessly
+    except OSError:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@torch.no_grad()
+def _load_cached(model, cache) -> dict:
+    import json
+
+    from safetensors.torch import load_file
+
+    from whopays.quant.fakequant import linear_layers, weights_digest
+
+    quantization = json.loads((cache / "quantization.json").read_text())
+    tensors = load_file(str(cache / "weights.safetensors"))
+    layers = linear_layers(model)
+    for name in quantization["bitmap"]:
+        layers[name].weight.copy_(tensors[name].to(layers[name].weight.device))
+    if weights_digest(layers, quantization["bitmap"]) != quantization.get("weights_sha256"):
+        raise RuntimeError(f"cached weights in {cache} do not match their recorded digest")
+    return quantization

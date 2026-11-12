@@ -14,16 +14,19 @@ from typing import Literal
 
 log = logging.getLogger(__name__)
 
-Platform = Literal["colab", "kaggle", "local"]
+Platform = Literal["colab", "kaggle", "modal", "local"]
 
 
 def platform() -> Platform:
-    """Detect Colab, Kaggle or local from environment variables both services set.
+    """Detect Colab, Kaggle, Modal or local from environment variables each service sets.
 
     Kaggle is checked first: its images are built on Colab's and also set COLAB_RELEASE_TAG.
+    Modal sets MODAL_TASK_ID in every container (scripts/modal_run.py).
     """
     if "KAGGLE_KERNEL_RUN_TYPE" in os.environ or "KAGGLE_URL_BASE" in os.environ:
         return "kaggle"
+    if "MODAL_TASK_ID" in os.environ:
+        return "modal"
     if "COLAB_RELEASE_TAG" in os.environ or "COLAB_GPU" in os.environ:
         return "colab"
     return "local"
@@ -40,8 +43,14 @@ def device() -> str:
     return "cpu"
 
 
+# Kaggle kernels pushed through the API lose their Secrets bindings (DECISIONS 2026-11-12),
+# so the runner kernel attaches the owner's private dataset `whopays-secrets` instead.
+KAGGLE_SECRET_DIRS = (Path("/kaggle/input/whopays-secrets"),)
+
+
 def get_secret(name: str) -> str | None:
-    """Read a secret from the environment, Colab userdata or Kaggle secrets, in that order.
+    """Read a secret from the environment, Colab userdata or Kaggle secrets, in that order;
+    on Kaggle, fall back to a file of that name in the private `whopays-secrets` dataset.
 
     Returns None when the secret is absent so callers can degrade (e.g. skip hub sync).
     """
@@ -60,6 +69,11 @@ def get_secret(name: str) -> str | None:
             return UserSecretsClient().get_secret(name) or None
     except Exception as exc:  # each service raises its own not-found / no-access errors
         log.warning("secret %s not available on %s (%s)", name, where, type(exc).__name__)
+    if where == "kaggle":
+        for folder in KAGGLE_SECRET_DIRS:
+            path = Path(folder) / name
+            if path.is_file():
+                return path.read_text().strip() or None
     return None
 
 
@@ -71,6 +85,7 @@ def results_root() -> Path:
     return {
         "colab": Path("/content/whopays-results"),
         "kaggle": Path("/kaggle/working/results"),
+        "modal": Path("/results"),  # a Modal Volume, so results outlive the container
         "local": Path.cwd() / "results",
     }[platform()]
 
@@ -80,6 +95,7 @@ def source_root() -> Path:
     return {
         "colab": Path("/content/whopays"),
         "kaggle": Path("/kaggle/working/whopays-src"),
+        "modal": Path("/root/whopays"),
         "local": Path.cwd(),
     }[platform()]
 

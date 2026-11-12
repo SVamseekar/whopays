@@ -210,4 +210,17 @@ def apply(model, bits, method='rtn', calibration=None, group_size=128):
                + (total - quantized) * 16}
     if errors is not None:
         summary['layer_error'] = {n: round(e, 8) for n, e in errors.items()}
+        summary['weights_sha256'] = weights_digest(layers, bitmap)
     return summary
+
+
+def weights_digest(layers, names) -> str:
+    """SHA-256 over the quantized weights, in name order. Runs that quantize the same model
+    key in different processes (whopays.parallel.chunk_jobs) must report the same digest."""
+    import hashlib
+    h = hashlib.sha256()
+    for name in sorted(names):
+        h.update(name.encode())
+        h.update(layers[name].weight.detach().to('cpu', torch.float16).contiguous()
+                 .view(torch.uint8).numpy().tobytes())
+    return h.hexdigest()

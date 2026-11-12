@@ -77,6 +77,31 @@ def shard_jobs(jobs: Iterable[RunConfig], n: int) -> list[list[RunConfig]]:
     return [s for s in shards if s]
 
 
+def chunk_jobs(jobs: Iterable[RunConfig], target_minutes: float = 60.0) -> list[list[RunConfig]]:
+    """Cut each model group into chunks of about `target_minutes` of evaluation, for many GPUs.
+
+    Each chunk loads (and, for GPTQ, quantizes) its weights again. That costs minutes but lets
+    one large group, such as 3B FP16 with three KV policies and MGSM, spread over many GPUs.
+    Quantization is deterministic for a given model key, calibration and software stack, and
+    every run records a weights digest so that can be checked afterwards.
+    """
+    chunks: list[list[RunConfig]] = []
+    current: list[RunConfig] = []
+    work = 0.0
+    key = None
+    for cfg in group_by_model(list(jobs)):
+        cost = job_cost(cfg)
+        if current and (cfg.model_key() != key or work + cost > target_minutes):
+            chunks.append(current)
+            current, work = [], 0.0
+        current.append(cfg)
+        work += cost
+        key = cfg.model_key()
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def visible_gpus() -> int:
     try:
         import torch

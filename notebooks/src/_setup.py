@@ -44,6 +44,11 @@ def _secret(name):
             return UserSecretsClient().get_secret(name)
     except Exception as exc:
         print(f"secret {name} not available ({type(exc).__name__})")
+    # Kaggle kernels pushed through the API lose Secrets bindings: read the private dataset.
+    _file = f"/kaggle/input/whopays-secrets/{name}"
+    if PLATFORM == "kaggle" and os.path.isfile(_file):
+        print(f"secret {name} read from the private whopays-secrets dataset")
+        return open(_file).read().strip() or None
     return None
 
 

@@ -183,3 +183,17 @@ def test_rtn_reports_no_layer_error(tiny_model_dir):
     from whopays.quant.fakequant import apply
     model = load(RunConfig(model=str(tiny_model_dir), task='belebele', lang='en'), 'cpu').model
     assert 'layer_error' not in apply(model, 4)
+
+
+def test_gptq_weights_digest_is_reproducible_and_sensitive(tiny_model_dir):
+    from whopays.config import RunConfig
+    from whopays.models.loader import load
+    from whopays.quant.fakequant import apply
+    cfg = RunConfig(model=str(tiny_model_dir), task='belebele', lang='en')
+    torch.manual_seed(0)
+    batches = [{'input_ids': torch.randint(1, 200, (1, 48)),
+                'attention_mask': torch.ones(1, 48, dtype=torch.long)} for _ in range(3)]
+    digests = [apply(load(cfg, 'cpu').model, bits, method='gptq', calibration=batches,
+                     group_size=16)['weights_sha256'] for bits in (4, 4, 3)]
+    assert digests[0] == digests[1] != digests[2]
+    assert len(digests[0]) == 64

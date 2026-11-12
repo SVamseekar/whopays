@@ -69,3 +69,46 @@ def test_gptqmodel_checkpoints_load_in_the_run_dtype(monkeypatch):
     seen['actual'] = torch.bfloat16
     with pytest.raises(RuntimeError, match='bfloat16'):
         loader._load_gptqmodel('ckpt', torch.float16)
+
+
+def test_quantized_weights_cache_reuses_identical_weights(tiny_model_dir, tmp_path, monkeypatch):
+    from whopays.quant import calibration, fakequant
+
+    batches = [{'input_ids': torch.randint(1, 200, (1, 32)),
+                'attention_mask': torch.ones(1, 32, dtype=torch.long)} for _ in range(2)]
+    monkeypatch.setattr(calibration, 'batches_for', lambda *a, **k: (batches, {'mode': 'en'}))
+    monkeypatch.setenv('WHOPAYS_QUANT_CACHE', str(tmp_path))
+    cfg = RunConfig(model=str(tiny_model_dir), task='belebele', lang='en',
+                    weight='w4_gptq', calib='en', group_size=32)
+    first = load(cfg, device='cpu')
+    calls = []
+    real = fakequant.apply
+    monkeypatch.setattr(fakequant, 'apply', lambda *a, **k: calls.append(1) or real(*a, **k))
+    second = load(cfg, device='cpu')
+    assert not calls  # served from the cache, no second GPTQ pass
+    for (n, a), (_, b) in zip(first.model.named_parameters(), second.model.named_parameters(),
+                              strict=True):
+        assert torch.equal(a, b), n
+    assert second.quantization['weights_sha256'] == first.quantization['weights_sha256']
+    assert second.quantization['calibration'] == {'mode': 'en'}
+    assert second.quantization['layer_error'] == first.quantization['layer_error']
+
+
+def test_corrupt_cache_is_rejected(tiny_model_dir, tmp_path, monkeypatch):
+    from safetensors.torch import load_file, save_file
+
+    from whopays.quant import calibration
+
+    batches = [{'input_ids': torch.randint(1, 200, (1, 32))}]
+    monkeypatch.setattr(calibration, 'batches_for', lambda *a, **k: (batches, {'mode': 'en'}))
+    monkeypatch.setenv('WHOPAYS_QUANT_CACHE', str(tmp_path))
+    cfg = RunConfig(model=str(tiny_model_dir), task='belebele', lang='en',
+                    weight='w4_gptq', calib='en', group_size=32)
+    load(cfg, device='cpu')
+    (path,) = tmp_path.rglob('weights.safetensors')
+    tensors = load_file(path)
+    name = sorted(tensors)[0]
+    tensors[name] = tensors[name] + 1
+    save_file(tensors, path)
+    with pytest.raises(RuntimeError, match='digest'):
+        load(cfg, device='cpu')

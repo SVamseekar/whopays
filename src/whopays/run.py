@@ -137,8 +137,9 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
     if calibration:  # released with the results (Williams & Aletras, 2024)
         (run_dir / "calibration.json").write_text(json.dumps(calibration, indent=1) + "\n")
     if quantization.get("layer_error"):  # per-layer GPTQ error, read-only diagnostics
-        (run_dir / "layer_error.json").write_text(
-            json.dumps(quantization["layer_error"], indent=1, sort_keys=True) + "\n")
+        (run_dir / "layer_error.json").write_text(json.dumps(
+            {"weights_sha256": quantization.get("weights_sha256"),
+             "layers": quantization["layer_error"]}, indent=1, sort_keys=True) + "\n")
 
     info = env_info()
     provenance = cfg.model_dump(mode="json", exclude={"tag"})

@@ -11,9 +11,8 @@ T4 x2 with internet on. One kernel means the secret below is attached once, and 
 live at a time. The setup cell installs the repo at the pinned commit, so that commit must
 already be on GitHub; `push` refuses otherwise.
 
-The Kaggle API cannot attach secrets. Attach `HF_TOKEN` once to `whopays-runner` in the web UI
-(Add-ons -> Secrets); later versions keep it. Without it, results stay in the kernel output and
-`fetch --results` downloads them.
+Kernels pushed through the API lose Kaggle Secrets bindings, so the kernel attaches the
+owner's private dataset `whopays-secrets` (one file, HF_TOKEN) and the setup cell reads it.
 
 Needs the Kaggle CLI (`uv tool install kaggle --with six`) and an API token in
 `~/.kaggle/access_token` or `KAGGLE_API_TOKEN`.
@@ -99,7 +98,7 @@ def stage(notebook: str, ref: str, user: str) -> Path:
         "enable_gpu": True,
         "enable_tpu": False,
         "enable_internet": True,
-        "dataset_sources": [],
+        "dataset_sources": [f"{user}/whopays-secrets"],
         "competition_sources": [],
         "kernel_sources": [],
         "model_sources": [],

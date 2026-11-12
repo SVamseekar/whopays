@@ -5,7 +5,8 @@ import pytest
 
 from whopays import env
 
-PLATFORM_VARS = ("COLAB_RELEASE_TAG", "COLAB_GPU", "KAGGLE_KERNEL_RUN_TYPE", "KAGGLE_URL_BASE")
+PLATFORM_VARS = ("COLAB_RELEASE_TAG", "COLAB_GPU", "KAGGLE_KERNEL_RUN_TYPE", "KAGGLE_URL_BASE",
+                 "MODAL_TASK_ID")
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +17,8 @@ def clean_env(monkeypatch):
 
 @pytest.mark.parametrize(
     ("var", "expected"),
-    [("COLAB_RELEASE_TAG", "colab"), ("KAGGLE_KERNEL_RUN_TYPE", "kaggle"), (None, "local")],
+    [("COLAB_RELEASE_TAG", "colab"), ("KAGGLE_KERNEL_RUN_TYPE", "kaggle"),
+     ("MODAL_TASK_ID", "modal"), (None, "local")],
 )
 def test_platform(monkeypatch, var, expected):
     if var:
@@ -36,6 +38,7 @@ def test_kaggle_image_with_colab_variables_is_kaggle(monkeypatch):
     [
         ("COLAB_RELEASE_TAG", "/content/whopays-results"),
         ("KAGGLE_KERNEL_RUN_TYPE", "/kaggle/working/results"),
+        ("MODAL_TASK_ID", "/results"),
     ],
 )
 def test_results_root_per_platform(monkeypatch, var, root):
@@ -96,3 +99,19 @@ def test_code_version_override(monkeypatch):
 def test_env_info_has_required_columns():
     info = env.env_info()
     assert {"gpu", "torch", "transformers", "code_version"} <= info.keys()
+
+
+def test_kaggle_secret_falls_back_to_private_dataset_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("KAGGLE_KERNEL_RUN_TYPE", "Batch")
+    monkeypatch.setattr(env, "KAGGLE_SECRET_DIRS", (tmp_path,))
+    (tmp_path / "HF_TOKEN").write_text("from-dataset\n")
+    fake = types.ModuleType("kaggle_secrets")
+
+    class Client:
+        def get_secret(self, name):
+            raise ConnectionError("no binding")
+
+    fake.UserSecretsClient = Client
+    monkeypatch.setitem(sys.modules, "kaggle_secrets", fake)
+    assert env.get_secret("HF_TOKEN") == "from-dataset"
+    assert env.get_secret("GH_TOKEN") is None
