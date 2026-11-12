@@ -74,6 +74,9 @@ experiment is authorized by a passing unit test alone.
     bfloat16 and saved asymmetric zeros in the lossy v1 format (DECISIONS 2026-11-07).
   - [x] CPU fix: GPTQModel pinned to FP16 and `gptq_v2`; reference run IDs moved (recipe 2); our
     W4 runs reused. **Next GPU check:** re-run notebook 02 (FR-3 about 50 min, then the grid).
+  - [x] CPU (2026-11-12): the grid now runs one worker per T4 (`whopays.parallel`), so the grid
+    projects to about half its single-GPU wall time; `scripts/kaggle_run.py` launches and
+    collects the run from the M1. **Next GPU check:** `kaggle_run.py push 02_replicate_uniform`.
 - [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
   - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
   - [x] CPU: notebook built; `parityquant/probe.py` runs a resumable profile, decides K2 at 4 bits and reports split-half reliability. A full profile would take about 33 h, so the default is 100 sentences per language (DECISIONS 2026-11-03).

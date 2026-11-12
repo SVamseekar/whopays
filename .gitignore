@@ -7,6 +7,7 @@ dist/
 build/
 *.egg-info/
 results/
+runs/
 .ipynb_checkpoints/
 .DS_Store
 .env

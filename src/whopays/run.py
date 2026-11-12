@@ -132,9 +132,13 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
     config_path.write_text(cfg.to_yaml())
     task = get_task(cfg.task)
     bundle = models.get(cfg)
-    calibration = (getattr(bundle, "quantization", None) or {}).get("calibration")
+    quantization = getattr(bundle, "quantization", None) or {}
+    calibration = quantization.get("calibration")
     if calibration:  # released with the results (Williams & Aletras, 2024)
         (run_dir / "calibration.json").write_text(json.dumps(calibration, indent=1) + "\n")
+    if quantization.get("layer_error"):  # per-layer GPTQ error, read-only diagnostics
+        (run_dir / "layer_error.json").write_text(
+            json.dumps(quantization["layer_error"], indent=1, sort_keys=True) + "\n")
 
     info = env_info()
     provenance = cfg.model_dump(mode="json", exclude={"tag"})

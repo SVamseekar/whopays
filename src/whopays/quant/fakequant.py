@@ -128,7 +128,13 @@ def _hessian_hook(hessians, counts, name):
 def _gptq_blocks(model, bitmap, calibration, group_size):
     """Layer-by-layer GPTQ: capture the first block's inputs once, then feed each quantized
     block's outputs to the next (Frantar et al., 2023). Equivalent to recapturing every
-    block's inputs from the partly quantized model, at one forward pass instead of L."""
+    block's inputs from the partly quantized model, at one forward pass instead of L.
+
+    Returns each layer's relative output error on its calibration inputs,
+    tr(D H D^T) / tr(W H W^T) with D = W - Q and H = E[x x^T]: the GPTQ objective
+    (Frantar et al., 2023, eq. 1) normalised by the layer's output energy. It is read only;
+    the quantized weights are the same with or without it."""
+    errors: dict[str, float] = {}
     layers = linear_layers(model)
     blocks: dict[str, list[str]] = {}
     for name in bitmap:
@@ -166,9 +172,13 @@ def _gptq_blocks(model, bitmap, calibration, group_size):
                 if not counts[n]:
                     raise ValueError(f'empty calibration activations for {n}')
                 h = hessians.pop(n) / counts[n]
-                layers[n].weight.copy_(quantize_weight(layers[n].weight, h, bitmap[n],
-                                                       group_size))
-                del h
+                w = layers[n].weight.float()
+                q = quantize_weight(layers[n].weight, h, bitmap[n], group_size)
+                d = w - q.float()
+                energy = float(((w @ h) * w).sum())
+                errors[n] = float(((d @ h) * d).sum()) / energy if energy > 0 else 0.0
+                layers[n].weight.copy_(q)
+                del h, w, q, d
         if index + 1 < len(order):
             outputs = []
             for args, kwargs in inputs:
@@ -176,6 +186,7 @@ def _gptq_blocks(model, bitmap, calibration, group_size):
                 hidden = out[0] if isinstance(out, tuple) else out
                 outputs.append(((hidden, *args[1:]), kwargs))
             inputs = outputs
+    return errors
 
 
 @torch.no_grad()
@@ -186,13 +197,17 @@ def apply(model, bits, method='rtn', calibration=None, group_size=128):
     if method == 'gptq' and not calibration:
         raise ValueError('GPTQ requires calibration batches')
     layers = linear_layers(model)
+    errors = None
     if method == 'gptq':
-        _gptq_blocks(model, bitmap, calibration, group_size)
+        errors = _gptq_blocks(model, bitmap, calibration, group_size)
     else:
         for name, bit in bitmap.items():
             layers[name].weight.copy_(quantize(layers[name].weight, bit, group_size))
     quantized = sum(layers[n].weight.numel() for n in bitmap)
     total = sum(p.numel() for p in model.parameters())
-    return {'bitmap': bitmap, 'method': method, 'memory_kind': 'computed_weight_bits',
-            'weight_bits': sum(layers[n].weight.numel() * b for n, b in bitmap.items())
-            + (total - quantized) * 16}
+    summary = {'bitmap': bitmap, 'method': method, 'memory_kind': 'computed_weight_bits',
+               'weight_bits': sum(layers[n].weight.numel() * b for n, b in bitmap.items())
+               + (total - quantized) * 16}
+    if errors is not None:
+        summary['layer_error'] = {n: round(e, 8) for n, e in errors.items()}
+    return summary

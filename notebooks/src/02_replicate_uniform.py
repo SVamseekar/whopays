@@ -22,6 +22,7 @@ from whopays.env import results_root
 from whopays.gates import require_k1
 from whopays.grids import K1_MODEL, replication_grid
 from whopays.io.results import load_runs
+from whopays.parallel import run_parallel
 
 require_k1(results_root())
 OURS = replicate.fr3_jobs(K1_MODEL)
@@ -43,7 +44,8 @@ if verdict["FR3"] != "PASS":
 
 # %%
 JOBS = load_jobs(replication_grid())
-results = whopays.run(JOBS, stop_on_error=True)
+run_parallel(JOBS)  # one worker per T4; outputs identical to a single-process run
+results = whopays.run(JOBS, stop_on_error=True)  # checks every run is finished (all "skipped")
 status = pd.DataFrame([r.__dict__ for r in results])
 print(status.status.value_counts())
 

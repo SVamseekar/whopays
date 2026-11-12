@@ -157,3 +157,29 @@ def test_gptq_apply_matches_per_block_recapture(tiny_model_dir):
     _legacy_gptq(slow, 3, batches, 16)
     for (name, a), (_, b) in zip(fast.named_parameters(), slow.named_parameters(), strict=True):
         assert torch.allclose(a, b, atol=1e-5, rtol=0), name
+
+
+def test_gptq_reports_hessian_weighted_error_per_layer(tiny_model_dir):
+    from whopays.config import RunConfig
+    from whopays.models.loader import load
+    from whopays.quant.fakequant import apply
+    torch.manual_seed(0)
+    cfg = RunConfig(model=str(tiny_model_dir), task='belebele', lang='en')
+    batches = [{'input_ids': torch.randint(1, 200, (1, 48)),
+                'attention_mask': torch.ones(1, 48, dtype=torch.long)} for _ in range(3)]
+    errors = {}
+    for bits in (3, 4):
+        model = load(cfg, 'cpu').model
+        summary = apply(model, bits, method='gptq', calibration=batches, group_size=16)
+        errors[bits] = summary['layer_error']
+        assert set(errors[bits]) == set(summary['bitmap'])
+        assert all(0 < e < 1 for e in errors[bits].values())
+    assert sum(errors[3].values()) > sum(errors[4].values())
+
+
+def test_rtn_reports_no_layer_error(tiny_model_dir):
+    from whopays.config import RunConfig
+    from whopays.models.loader import load
+    from whopays.quant.fakequant import apply
+    model = load(RunConfig(model=str(tiny_model_dir), task='belebele', lang='en'), 'cpu').model
+    assert 'layer_error' not in apply(model, 4)

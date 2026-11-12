@@ -13,11 +13,13 @@ import pandas as pd
 import whopays
 from whopays.env import results_root, source_root
 from whopays.gates import require_k1
+from whopays.parallel import run_parallel
 
 SLICE = 0
 require_k1(results_root())
 JOBS = source_root() / "configs" / f"audit_slice_{SLICE:02d}.yaml"
-results = whopays.run(JOBS)
+run_parallel(JOBS, check=False)  # one worker per T4
+results = whopays.run(JOBS)  # skips finished runs, retries failures, gives the status table
 status = pd.DataFrame([r.__dict__ for r in results])
 print(status.groupby(["task", "status"]).size().unstack(fill_value=0))
 print(status[status.status == "failed"][["run_id", "task", "lang", "error"]].to_string())
