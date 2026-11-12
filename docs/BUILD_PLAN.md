@@ -77,9 +77,14 @@ experiment is authorized by a passing unit test alone.
   - [x] CPU (2026-11-12): the grid now runs one worker per T4 (`whopays.parallel`), so the grid
     projects to about half its single-GPU wall time; `scripts/kaggle_run.py` launches and
     collects the run from the M1. **Next GPU check:** `kaggle_run.py push 02_replicate_uniform`.
+  - 2026-11-12 Modal run (`6e01035`): **FR-3 PASS**, mean 1.72% (limit 2%), max 4.75% (Spanish;
+    French 4.53%, Swahili 2.50% also above 2%); ours lower than GPTQModel in 10 of 11 languages
+    (DECISIONS 2026-11-12). Replication grid running on Modal; gap direction follows.
 - [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
   - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
   - [x] CPU: notebook built; `parityquant/probe.py` runs a resumable profile, decides K2 at 4 bits and reports split-half reliability. A full profile would take about 33 h, so the default is 100 sentences per language (DECISIONS 2026-11-03).
+  - 2026-11-12 Kaggle run (`b820e74`) ran out of T4 memory in the first baseline pass (float32
+    logits at batch 32). Fixed with a per-sequence scorer (`974c16a`); rerun on Kaggle.
 
 ## M2 — Audit grid (weeks 5–8)
 - [x] Write and commit `PREREGISTRATION.md` (dated) from PRD §Research questions and §Statistical protocol. Prospective draft amended and committed 2026-10-31, before any M2 run. Remaining H2 inference and fractional-budget comparator specifications are explicitly open in that file.
