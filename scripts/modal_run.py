@@ -1,6 +1,7 @@
 """Run WhoPays work on Modal T4s from the M1.
 
     python scripts/modal_run.py env                          # smoke test: print the stack
+    python scripts/modal_run.py fr3                          # FR-3 check, one T4
     python scripts/modal_run.py notebook 03_sensitivity_probe
     python scripts/modal_run.py jobs configs/audit.yaml --chunk-minutes 60
 
@@ -44,6 +45,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("env")
+    sub.add_parser("fr3", help="FR-3 check on one T4 (K1 gate, ours, references)")
     n = sub.add_parser("notebook")
     n.add_argument("name")
     j = sub.add_parser("jobs")
@@ -71,6 +73,13 @@ def main() -> int:
         if args.cmd == "env":
             print(modal_app.environment.spawn().get(timeout=20 * 60))
             return 0
+        if args.cmd == "fr3":
+            code = ("from whopays import replicate; from whopays.grids import K1_MODEL; "
+                    "t, v, o = replicate.fr3_check(K1_MODEL); "
+                    "print(t.round(3).to_string(index=False)); print(v); "
+                    "print('official (secondary):'); print(o.round(3).to_string(index=False)); "
+                    "raise SystemExit(0 if v['FR3'] == 'PASS' else 3)")
+            return modal_app.python.spawn(code).get(timeout=6 * 3600)
         if args.cmd == "notebook":
             return modal_app.notebook.spawn(args.name).get(timeout=12 * 3600)
         first, rest = _plan(args.spec, args.chunk_minutes)

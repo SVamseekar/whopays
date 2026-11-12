@@ -19,23 +19,15 @@ import whopays
 from whopays import replicate
 from whopays.config import load_jobs
 from whopays.env import results_root
-from whopays.gates import require_k1
 from whopays.grids import K1_MODEL, replication_grid
 from whopays.io.results import load_runs
 from whopays.parallel import run_parallel
 
-require_k1(results_root())
-OURS = replicate.fr3_jobs(K1_MODEL)
-whopays.run(OURS, stop_on_error=True)
-reference = load_runs(results_root(), replicate.run_reference(K1_MODEL))
-table, verdict = replicate.fr3_verdict(load_runs(results_root(), OURS), reference)
+table, verdict, official = replicate.fr3_check(K1_MODEL)
 print(table.round(3).to_string(index=False))
 print(verdict)
-
-official = load_runs(results_root(), replicate.run_reference(K1_MODEL, kind="official"))
 print("\nSecondary, descriptive: Qwen's official GPTQ-Int4 (undisclosed calibration, symmetric)")
-print(replicate.fr3_verdict(load_runs(results_root(), OURS), official)[0]
-      .round(3).to_string(index=False))
+print(official.round(3).to_string(index=False))
 if verdict["FR3"] != "PASS":
     raise SystemExit(f"FR-3 {verdict['FR3']}: stopping before the replication grid")
 

@@ -180,3 +180,19 @@ def test_guard_override_is_explicit_and_logged(tmp_path, caplog):
         assert gates.require_k1(tmp_path, override='debugging on a limit=5 slice') is False
     assert 'debugging' in caplog.text
     assert json.loads((tmp_path / 'gate_overrides.jsonl').read_text())['gate'] == 'K1'
+
+
+def test_fr3_check_runs_ours_then_reference_and_reports(monkeypatch, tmp_path):
+    import whopays
+    from whopays import gates
+    calls = []
+    monkeypatch.setattr(gates, "require_k1", lambda root: calls.append("k1"))
+    monkeypatch.setattr(whopays, "run", lambda jobs, **kw: calls.append(("ours", len(jobs))))
+    monkeypatch.setattr(replicate, "run_reference",
+                        lambda model, kind="gptqmodel", **kw: calls.append(kind) or [kind])
+    rows = {"ours": _nll(3, 2.0), "gptqmodel": _nll(3, 2.01), "official": _nll(3, 2.2)}
+    monkeypatch.setattr(replicate, "load_runs",
+                        lambda root, jobs: rows[jobs[0] if isinstance(jobs[0], str) else "ours"])
+    table, verdict, official = replicate.fr3_check("m", root=tmp_path)
+    assert calls[0] == "k1" and calls[1][0] == "ours" and calls[2:] == ["gptqmodel", "official"]
+    assert verdict["FR3"] == "PASS" and len(official) == len(table)

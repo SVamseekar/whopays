@@ -24,6 +24,7 @@ from whopays import crosscheck
 from whopays.config import RunConfig
 from whopays.env import results_root
 from whopays.grids import write_jobs
+from whopays.io.results import load_runs
 from whopays.languages import CODES
 
 GPTQMODEL_VERSION = "7.6.0"
@@ -144,6 +145,24 @@ def run_reference(model: str, *, kind: str = "gptqmodel", root: Path | None = No
     print("reference environment python:", command[0], "| caller:", sys.executable)
     subprocess.run(command, check=True, env={**os.environ, "USE_TF": "0"})
     return jobs
+
+
+def fr3_check(model: str, *, root: Path | None = None):
+    """FR-3 end to end: K1 gate, our W4 runs, the GPTQModel reference (primary) and Qwen's
+    official GPTQ-Int4 checkpoint (secondary, descriptive). Returns (table, verdict, official
+    table). Notebook 02 and the Modal runner both call this."""
+    import whopays
+    from whopays import gates
+
+    root = Path(root) if root is not None else results_root()
+    gates.require_k1(root)
+    ours_jobs = fr3_jobs(model)
+    whopays.run(ours_jobs, stop_on_error=True)
+    ours = load_runs(root, ours_jobs)
+    table, verdict = fr3_verdict(ours, load_runs(root, run_reference(model, root=root)))
+    official, _ = fr3_verdict(ours, load_runs(root, run_reference(model, kind="official",
+                                                                   root=root)))
+    return table, verdict, official
 
 
 def perplexity(rows: pd.DataFrame) -> dict[str, float]:

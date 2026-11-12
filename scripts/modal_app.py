@@ -83,3 +83,13 @@ def notebook(name: str) -> int:
                               cwd="/root/whopays").returncode
     finally:
         volume.commit()
+
+
+@app.function(timeout=6 * 3600, **COMMON)
+def python(code: str) -> int:
+    """Run a short Python snippet against the installed package, e.g. the FR-3 check."""
+    volume.reload()
+    try:
+        return subprocess.run([sys.executable, "-c", code], cwd="/root/whopays").returncode
+    finally:
+        volume.commit()
