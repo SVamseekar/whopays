@@ -13,13 +13,13 @@ from whopays.env import env_info
 from whopays.quant.fakequant import activation_hessian, capture_block_inputs, linear_layers
 from whopays.quant.gptq import quantize_weight
 from whopays.quant.rtn import quantize
-from whopays.tasks.flores_nll import nll_batch
+from whopays.tasks.flores_nll import nll_batch_low_memory
 
 
 def _score(bundle, texts, batch_size):
     loss, count = 0.0, 0
     for start in range(0, len(texts), batch_size):
-        for nll, tokens in nll_batch(bundle, texts[start:start + batch_size]):
+        for nll, tokens in nll_batch_low_memory(bundle, texts[start:start + batch_size]):
             loss += nll
             count += tokens
     if count == 0:

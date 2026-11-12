@@ -43,6 +43,37 @@ def nll_batch(bundle, texts: Sequence[str]) -> list[tuple[float, int]]:
     return [(float(nll[i].sum()), len(s) - 1) for i, s in enumerate(seqs)]
 
 
+@torch.no_grad()
+def nll_batch_low_memory(bundle, texts: Sequence[str]) -> list[tuple[float, int]]:
+    """Same quantity as `nll_batch`, without the (batch, length, vocab) float32 logits.
+
+    `nll_batch` at batch 32 asks for about 4.7 GB for the float32 logits alone (Qwen2.5's
+    151,936-token vocabulary), which ran a T4 out of memory in the K2 probe (2026-11-12). Here
+    the decoder runs once on the batch and the vocabulary projection plus cross-entropy run
+    one sequence at a time. Used by the sensitivity probe only; FLORES task runs keep
+    `nll_batch`, so logged results are unchanged.
+    """
+    tok, model, dev = bundle.tokenizer, bundle.model, bundle.device
+    prefix = prefix_token(bundle)
+    seqs = [[prefix, *tok(t, add_special_tokens=False)["input_ids"]] for t in texts]
+    width = max(map(len, seqs))
+    pad = tok.pad_token_id if tok.pad_token_id is not None else prefix
+    ids = torch.full((len(seqs), width), pad, dtype=torch.long)
+    mask = torch.zeros_like(ids)
+    for i, s in enumerate(seqs):
+        ids[i, : len(s)] = torch.tensor(s)
+        mask[i, : len(s)] = 1
+    ids, mask = ids.to(dev), mask.to(dev)
+    hidden = model.model(input_ids=ids, attention_mask=mask).last_hidden_state
+    out = []
+    for i, s in enumerate(seqs):
+        n = len(s)
+        logits = model.lm_head(hidden[i, : n - 1]).float()
+        nll = torch.nn.functional.cross_entropy(logits, ids[i, 1:n], reduction="sum")
+        out.append((float(nll), n - 1))
+    return out
+
+
 def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -> Iterator[dict]:
     if cfg.kv != "full" or cfg.spec:
         raise ValueError("flores_nll measures weights only; use kv='full' and spec=False")

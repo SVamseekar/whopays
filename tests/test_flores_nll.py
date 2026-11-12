@@ -65,3 +65,16 @@ def test_end_to_end_through_run(tmp_path, tiny_model_dir, monkeypatch):
 def test_flores_split_guard():
     with pytest.raises(ValueError, match="dev or devtest"):
         datasets.flores("en", "test")
+
+
+def test_low_memory_nll_matches_batched_nll(tiny_model_dir):
+    from whopays.config import RunConfig
+    from whopays.models.loader import load
+    from whopays.tasks.flores_nll import nll_batch, nll_batch_low_memory
+
+    bundle = load(RunConfig(model=str(tiny_model_dir), task="flores_nll", lang="en"), "cpu")
+    texts = ["a short one", "a considerably longer sentence with several more tokens in it", "x"]
+    for (a, n), (b, m) in zip(nll_batch(bundle, texts), nll_batch_low_memory(bundle, texts),
+                              strict=True):
+        assert n == m
+        assert abs(a - b) <= 1e-4 * max(1.0, abs(a))
