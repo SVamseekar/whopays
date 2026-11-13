@@ -42,18 +42,35 @@ status = pd.DataFrame([r.__dict__ for r in results])
 print(status.status.value_counts())
 
 # %% [markdown]
-# ## Per-language gap direction: W4 against FP16 on Belebele
+# ## Per-language gap direction (fifth amendment, 2026-11-13)
+#
+# The published direction (lower-resource and non-Latin-script languages hurt more) is judged
+# on two floor-free measures, seeds averaged per item, with paired 95% bootstrap intervals:
+# FLORES relative NLL increase (primary) and Belebele above-chance retention of calibrated
+# accuracy. Raw Belebele points are printed alongside, as preregistered.
 
 # %%
-def _belebele(**match):
-    keep = [c for c in JOBS if c.task == "belebele"
+def _rows(task, **match):
+    keep = [c for c in JOBS if c.task == task
             and all(getattr(c, k) == v for k, v in match.items())]
     return load_runs(results_root(), keep)
 
 
-for calib in ("en", "multi"):
-    for seed in (0, 1, 2):
-        print(f"calibration: {calib}, seed {seed}")
-        print(replicate.gap_direction(_belebele(weight="fp16"),
-                                      _belebele(weight="w4_gptq", calib=calib, seed=seed))
-              .round(2).to_string(index=False))
+for weight in ("w4_gptq", "w3_gptq"):
+    for calib in ("en", "multi"):
+        print(f"\n=== {weight}, calibration {calib} (3 seeds) ===")
+        nll = replicate.nll_gap_direction(_rows("flores_nll", weight="fp16"),
+                                          _rows("flores_nll", weight=weight, calib=calib))
+        print("FLORES relative NLL increase (primary):")
+        print(nll.round(2).to_string(index=False))
+        kept = replicate.retention_gap_direction(_rows("belebele", weight="fp16"),
+                                                 _rows("belebele", weight=weight, calib=calib))
+        print("Belebele above-chance retention, calibrated accuracy:")
+        print(kept.round(3).to_string(index=False))
+        raw = pd.concat([replicate.gap_direction(_rows("belebele", weight="fp16"),
+                                                 _rows("belebele", weight=weight, calib=calib,
+                                                       seed=s)).assign(seed=s)
+                         for s in (0, 1, 2)])
+        print("Raw Belebele points (preregistered, floor-limited):")
+        print(raw.groupby("lang")[["change_pts", "gap_vs_english_pts"]].mean().round(2)
+              .to_string())

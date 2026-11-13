@@ -177,3 +177,38 @@ points in the v1 format, which GPTQModel's own source says overflows. The refere
 FP16 and saves `gptq_v2`; its runs get new IDs and the earlier ones are kept as superseded. Our
 quantizer, the calibration and the 2% rule are unchanged.
 
+
+## Fifth amendment — 2026-11-13, after the replication gap-direction result, before audit results are analysed
+
+**Disclosure.** This amendment follows a seen result. The finished 1.5B replication grid (308
+runs) did not reproduce the published gap direction when measured in raw Belebele accuracy
+points. Under W4 with English calibration, only Russian and Thai lost significantly more than
+English. Under W3, Bengali, Swahili and Telugu lost fewer points than English. The cause is
+mechanical. At FP16 those languages score 29.9–39.8% against a 25% chance level, so a raw-points
+drop is capped by a floor. Quantized letter scoring also collapses toward one letter (up to 83%
+of answers for Japanese at W3). The 165 audit runs already finished are Belebele full-cache cells
+shared with this grid, so their FP16, W8, W4 and W3 accuracies have been seen. No H1–H4 statistic
+has been computed. The investigation is in docs/DECISIONS.md (2026-11-13).
+
+**Replication direction.** The direction is judged on two measures, each with paired 95%
+bootstrap intervals (2,000 resamples, one draw shared across parallel items, calibration seeds
+averaged per item):
+1. Primary: the relative increase in total FLORES devtest NLL per language, minus English's
+   (`replicate.nll_gap_direction`).
+2. Secondary: the share of above-chance calibrated Belebele accuracy retained,
+   (acc_q − 0.25)/(acc_fp16 − 0.25), minus English's share
+   (`replicate.retention_gap_direction`). Calibrated accuracy is the PRD's existing letter-bias
+   mitigation.
+
+The direction counts as reproduced when, in the W4 English-calibration cell, more non-English
+languages are significantly worse than English on the primary measure than are significantly
+better. This rule was written after the results were seen. Other cells and raw points are
+reported descriptively.
+
+**H1.** A language's loss becomes the share of above-chance FP16 accuracy lost,
+1 − (acc_q − c)/(acc_fp16 − c), with c = 0.25 for Belebele and 0 for MGSM
+(`report.hypotheses.relative_loss`). It is undefined for a language with no headroom above
+chance. The falsification rule is unchanged: both Spearman intervals include zero. Raw-points H1
+is reported alongside.
+
+**Unchanged.** H2–H4, the grids, budgets, gates, FR-3 and the K1–K4 kill criteria.

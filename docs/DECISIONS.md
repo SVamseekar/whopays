@@ -2,6 +2,14 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-13 — Fifth amendment adopted: replication direction reproduced on FLORES NLL; H1 uses relative loss above chance
+The owner chose the amendment. `PREREGISTRATION.md` now has a fifth amendment, disclosed as following the raw-points result. Code: `replicate.nll_gap_direction` and `replicate.retention_gap_direction` (tested on planted effects, including a constant letter prior that calibration must cancel and a language with no headroom), and `report.hypotheses.relative_loss`, with `h1` taking chance from the task (Belebele 0.25, MGSM 0). `stats.power.simulate_h1_power` takes `chance`, default 0.25. Notebook 02 prints both measures and raw points. Results on the logged rows (`docs/figures/replication_gap_direction_amended.csv`):
+- W4, English calibration: FLORES NLL rises significantly more than English's in 9 of 10 languages (bn, de, es, fr, ja, ru, te, th, zh). sw rises significantly less. Belebele retention is significantly lower than English's for bn, de, ru, sw and th, and higher for none. **Replication direction reproduced** under the amendment's rule. That rule was written after the results were seen, as disclosed.
+- W4, multilingual calibration: NLL is worse than English's in 8 of 10 languages; retention only for sw.
+- W3, English calibration: 9 of 10 on both measures.
+- W3, multilingual calibration: 6 of 10 on both; zh retains more than en.
+Multilingual calibration narrows the gaps on both measures, consistent with the calibration-language finding the PRD lists as a sanity anchor. Notebook 02's task in BUILD_PLAN is ticked: FR-3 passed on 2026-11-12 and the direction is reproduced under this amendment.
+
 ## 2026-11-13 — Gap direction investigated: reproduced in FLORES NLL and in Belebele above-chance retention, not in raw points
 **Symptom.** On Belebele raw points (previous entry), the published direction was not reproduced. Under W4 with English calibration, only ru and th were worse than en. Under W3, the low-resource languages lost fewer points than en.
 

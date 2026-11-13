@@ -197,3 +197,23 @@ def test_attribution_needs_all_eight_cells():
     assert shapley['S'] == pytest.approx(0.0, abs=1e-9)
     with pytest.raises(ValueError, match='cell'):
         hyp.attribution(rows[rows.kv == 'full'], 'te', 'w4_gptq', 'evict')
+
+
+def test_relative_loss_is_the_share_of_above_chance_accuracy_lost():
+    base = np.array([0.9, 0.35, 0.25])
+    treat = np.array([0.8, 0.30, 0.25])
+    loss = hyp.relative_loss(base, treat, chance=0.25)
+    assert loss[0] == pytest.approx(0.1 / 0.65)
+    assert loss[1] == pytest.approx(0.5)
+    assert np.isnan(loss[2])  # no headroom above chance: undefined, not zero
+
+
+def test_h1_takes_chance_from_the_task():
+    fp16 = _cell({lang: 0.9 for lang in LANGS})
+    # Same raw loss everywhere (0.1); relative loss above chance is also equal at equal base.
+    treated = _cell({lang: 0.8 for lang in LANGS}, weight='w4_gptq')
+    assert hyp.CHANCE['belebele'] == 0.25 and hyp.CHANCE['mgsm'] == 0.0
+    result = hyp.h1(fp16, treated, n_resamples=50)
+    assert result['chance'] == 0.25
+    with pytest.raises(ValueError, match='chance'):
+        hyp.h1(fp16.drop(columns='task'), treated.drop(columns='task'), n_resamples=10)

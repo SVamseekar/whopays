@@ -62,7 +62,7 @@ def simulate_paired_power(n_items: int, discordance: float, delta: float, *,
 
 def simulate_h1_power(premium, base_accuracy, *, slope: float, n_items: int,
                       discordance: float, n_sims: int = 200, n_resamples: int = 500,
-                      seed: int = 0) -> float:
+                      seed: int = 0, chance: float = 0.25) -> float:
     """Share of simulations in which preregistered H1 is called supported.
 
     `premium` and `base_accuracy` are per non-English language. The planted loss is
@@ -90,6 +90,6 @@ def simulate_h1_power(premium, base_accuracy, *, slope: float, n_items: int,
             treated_rows.append(pd.DataFrame({"item_id": items, "lang": lang,
                                               "correct": treated, "input_tokens": tokens}))
         result = h1(pd.concat(fp16_rows), pd.concat(treated_rows), n_resamples=n_resamples,
-                    seed=int(rng.integers(2**31)))
+                    seed=int(rng.integers(2**31)), chance=chance)
         supported += result["supported"]
     return supported / n_sims

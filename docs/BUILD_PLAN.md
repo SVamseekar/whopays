@@ -60,7 +60,7 @@ experiment is authorized by a passing unit test alone.
 - [x] `quant/gptq.py`: minimal GPTQ (Hessian from calibration activations, damping 0.01, group 128). Test it on a tiny model so that GPTQ error is below RTN error. CPU verified 2026-10-31; FR-3 GPU reference comparison remains open.
 - [x] Calibration sampler: English-only and multilingual, with a seed. CPU verified 2026-10-31 on FLORES dev; replaced 2026-11-07 by 128 × 2,048-token Wikipedia windows (fourth amendment).
 - [x] Loader: a fake-quant mode driven by a bit map. CPU verified 2026-10-31.
-- [ ] Notebook `02_replicate_uniform`. **GPU check:** FR-3 is within 2% of a GPTQModel W4 checkpoint, and the per-language gap goes in the published direction.
+- [x] Notebook `02_replicate_uniform` (FR-3 PASS 2026-11-12; direction reproduced under the fifth amendment, 2026-11-13). **GPU check:** FR-3 is within 2% of a GPTQModel W4 checkpoint, and the per-language gap goes in the published direction.
   - [x] CPU: notebook built; `replicate.py` runs the checkpoint in an isolated venv and computes both checks; `gates.require_k1` blocks it until K1 passes. GPU evidence is absent.
   - 2026-11-06 Kaggle run (all 308 runs, 7.4 h): FR-3 FAIL against Qwen's official GPTQ-Int4,
     mean 7.5% (Russian 25.8%). Cause: 128 single FLORES sentences gave a few thousand calibration
@@ -88,6 +88,9 @@ experiment is authorized by a passing unit test alone.
     English calibration, none with multilingual calibration. W3 collapses toward chance, and the
     low-resource languages hit the 25% floor. The owner must choose between raw points and a
     headroom-corrected metric (fifth amendment) before this task is ticked (DECISIONS 2026-11-13).
+  - 2026-11-13: fifth amendment adopted. FLORES NLL rises significantly more than English's in
+    9 of 10 languages (W4, English calibration); Belebele retention is lower for 5 of 10 languages
+    and higher for none. Direction reproduced (DECISIONS 2026-11-13).
 - [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
   - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
   - [x] CPU: notebook built; `parityquant/probe.py` runs a resumable profile, decides K2 at 4 bits and reports split-half reliability. A full profile would take about 33 h, so the default is 100 sentences per language (DECISIONS 2026-11-03).

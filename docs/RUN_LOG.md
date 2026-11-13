@@ -178,7 +178,7 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 The audit's 165 done runs are Belebele full-cache cells shared with the replication grid.
 
 ## Open items (2026-11-13)
-- Replication gap direction: the user must choose between raw points as preregistered (not reproduced) and a headroom-corrected metric, which needs an amendment (DECISIONS 2026-11-13).
+- Replication gap direction: resolved by the fifth amendment. It is reproduced on FLORES NLL in 9 of 10 languages and on Belebele retention in 5 of 10 (no new GPU runs; DECISIONS 2026-11-13).
 - Modal driver hangs after `run_jobs.map` returns. Until that is fixed, call `push_results` directly.
 - K2: re-profile at 500 sentences per language, to resolve `noise_limited` (DECISIONS 2026-11-13).
 - HF uploads: fixed 2026-11-13. Modal grids make one commit at the end, and interval pushes run in a background thread (DECISIONS 2026-11-13).

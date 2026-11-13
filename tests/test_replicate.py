@@ -196,3 +196,71 @@ def test_fr3_check_runs_ours_then_reference_and_reports(monkeypatch, tmp_path):
     table, verdict, official = replicate.fr3_check("m", root=tmp_path)
     assert calls[0] == "k1" and calls[1][0] == "ours" and calls[2:] == ["gptqmodel", "official"]
     assert verdict["FR3"] == "PASS" and len(official) == len(table)
+
+
+def _flores(scale_by_lang, n=200, seed=0, run='r'):
+    rng = np.random.default_rng(seed)
+    base = rng.uniform(20, 60, n)
+    return pd.DataFrame([{'lang': lang, 'item_id': f's{i}', 'nll_sum': base[i] * s, 'run_id': run}
+                         for lang, s in scale_by_lang.items() for i in range(n)])
+
+
+def test_nll_gap_direction_flags_languages_that_degrade_more_than_english():
+    fp16 = _flores({'en': 1.0, 'te': 1.0, 'de': 1.0})
+    treated = _flores({'en': 1.10, 'te': 1.30, 'de': 1.10})
+    row = replicate.nll_gap_direction(fp16, treated, n_resamples=200).set_index('lang')
+    assert row.loc['en', 'rel_increase_pct'] == pytest.approx(10.0)
+    assert row.loc['te', 'gap_vs_english_pct'] == pytest.approx(20.0)
+    assert bool(row.loc['te', 'worse_than_english'])
+    assert not bool(row.loc['de', 'worse_than_english'])
+
+
+def test_nll_gap_direction_averages_seeds_per_sentence():
+    fp16 = _flores({'en': 1.0, 'te': 1.0})
+    treated = pd.concat([_flores({'en': 1.1, 'te': 1.2}, run='a'),
+                         _flores({'en': 1.1, 'te': 1.4}, run='b')])
+    row = replicate.nll_gap_direction(fp16, treated, n_resamples=50).set_index('lang')
+    assert row.loc['te', 'rel_increase_pct'] == pytest.approx(30.0)
+
+
+def _belebele(acc_by_lang, n=400, run='r', bias=0.0):
+    """Letter log-probs with the gold letter highest for the first acc*n items; optional
+    constant preference for letter A that calibration must remove."""
+    rows = []
+    for lang, acc in acc_by_lang.items():
+        for i in range(n):
+            gold = i % 4
+            lp = np.full(4, -3.0)
+            lp[gold if i < acc * n else (gold + 1) % 4] = -0.5
+            lp[0] += bias
+            rows.append({'lang': lang, 'item_id': f'q{i}', 'gold': gold,
+                         'letter_logprobs': lp.tolist(), 'run_id': run})
+    return pd.DataFrame(rows)
+
+
+def test_retention_gap_direction_uses_above_chance_share():
+    # en keeps 0.9-0.25 -> 0.8-0.25: retention 0.846; te keeps 0.35-0.25 -> 0.3-0.25: 0.5.
+    # In raw points te loses less (5 vs 10) but retains a smaller share above chance.
+    fp16 = _belebele({'en': 0.9, 'te': 0.35})
+    treated = _belebele({'en': 0.8, 'te': 0.3})
+    row = replicate.retention_gap_direction(fp16, treated, n_resamples=200).set_index('lang')
+    assert row.loc['en', 'retention'] == pytest.approx(0.55 / 0.65, abs=1e-6)
+    assert row.loc['te', 'retention'] == pytest.approx(0.5, abs=1e-6)
+    assert row.loc['te', 'gap_vs_english'] < 0
+
+
+def test_retention_gap_direction_removes_a_constant_letter_prior():
+    clean = replicate.retention_gap_direction(_belebele({'en': 0.9, 'te': 0.6}),
+                                              _belebele({'en': 0.8, 'te': 0.5}),
+                                              n_resamples=20).set_index('lang')
+    biased = replicate.retention_gap_direction(_belebele({'en': 0.9, 'te': 0.6}),
+                                               _belebele({'en': 0.8, 'te': 0.5}, bias=1.0),
+                                               n_resamples=20).set_index('lang')
+    assert biased.loc['te', 'retention'] == pytest.approx(clean.loc['te', 'retention'], abs=0.02)
+
+
+def test_retention_undefined_without_headroom_above_chance():
+    table = replicate.retention_gap_direction(_belebele({'en': 0.9, 'te': 0.25}),
+                                              _belebele({'en': 0.8, 'te': 0.25}),
+                                              n_resamples=20).set_index('lang')
+    assert np.isnan(table.loc['te', 'retention'])

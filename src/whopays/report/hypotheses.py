@@ -22,6 +22,26 @@ from whopays.stats.oaxaca import oaxaca
 from whopays.stats.shapley import shapley_values
 
 MEAN_COST_LIMIT = 0.01  # one percentage point (PREREGISTRATION H4)
+# Fifth amendment (2026-11-13): H1's per-language loss is the share of above-chance accuracy
+# lost, so a language near chance cannot look robust only because it has no room to fall.
+CHANCE = {"belebele": 0.25, "mgsm": 0.0}
+
+
+def relative_loss(base, treated, chance: float):
+    """1 − (treated − chance) / (base − chance); NaN where base has no headroom above chance."""
+    base, treated = np.asarray(base, dtype=float), np.asarray(treated, dtype=float)
+    head = base - chance
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(head > 1e-12, (base - treated) / head, np.nan)
+
+
+def _chance(rows: pd.DataFrame, chance: float | None) -> float:
+    if chance is not None:
+        return float(chance)
+    tasks = set(rows["task"]) if "task" in rows else set()
+    if len(tasks) != 1 or next(iter(tasks)) not in CHANCE:
+        raise ValueError(f"cannot infer chance level from task {sorted(tasks)}; pass chance=")
+    return CHANCE[next(iter(tasks))]
 
 
 def _panel(rows: pd.DataFrame, column: str = "correct") -> pd.DataFrame:
@@ -40,12 +60,16 @@ def _rho(x, y) -> float | None:
     return float(spearmanr(x, y).statistic)
 
 
-def h1(fp16: pd.DataFrame, treated: pd.DataFrame, *, n_resamples: int = 2000, seed: int = 0):
+def h1(fp16: pd.DataFrame, treated: pd.DataFrame, *, n_resamples: int = 2000, seed: int = 0,
+       chance: float | None = None):
     """Spearman of per-language loss with token premium and with FP16 accuracy, item bootstrap.
 
-    Loss is FP16 accuracy minus treated accuracy, so H1 predicts positive correlation with
-    premium and negative correlation with base accuracy. Falsified if both intervals hold 0.
+    Loss is the share of above-chance FP16 accuracy lost (`relative_loss`; fifth amendment),
+    with chance taken from the task (Belebele 0.25, MGSM 0) unless given. H1 predicts positive
+    correlation with premium and negative correlation with base accuracy. Falsified if both
+    intervals hold 0.
     """
+    level = _chance(fp16, chance)
     base, treat = _panel(fp16), _panel(treated)
     tokens = _panel(fp16, "input_tokens")
     if not base.index.equals(treat.index) or not base.columns.equals(treat.columns):
@@ -53,18 +77,22 @@ def h1(fp16: pd.DataFrame, treated: pd.DataFrame, *, n_resamples: int = 2000, se
     if "en" not in tokens:
         raise ValueError("token premium needs English items")
     premium_items = tokens.div(tokens["en"], axis=0).drop(columns="en")
-    gap = (base - treat)[premium_items.columns]
     accuracy = base[premium_items.columns]
+    treated_acc = treat[premium_items.columns]
 
     def statistics(index):
-        loss = gap.iloc[index].mean().to_numpy()
+        loss = relative_loss(accuracy.iloc[index].mean().to_numpy(),
+                             treated_acc.iloc[index].mean().to_numpy(), level)
+        if np.isnan(loss).any():
+            return None, None
         return (_rho(premium_items.iloc[index].mean().to_numpy(), loss),
                 _rho(accuracy.iloc[index].mean().to_numpy(), loss))
 
-    point = statistics(np.arange(len(gap)))
+    point = statistics(np.arange(len(accuracy)))
     rng = np.random.default_rng(seed)
-    draws = [statistics(rng.integers(len(gap), size=len(gap))) for _ in range(n_resamples)]
-    result = {}
+    n = len(accuracy)
+    draws = [statistics(rng.integers(n, size=n)) for _ in range(n_resamples)]
+    result = {"chance": level}
     excludes_zero = []
     for position, name in enumerate(("token_premium", "fp16_accuracy")):
         values = np.array([d[position] if d[position] is not None else 0.0 for d in draws])

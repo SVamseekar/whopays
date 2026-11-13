@@ -198,3 +198,101 @@ def gap_direction(fp16: pd.DataFrame, treated: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({"lang": change.index, "change_pts": change.to_numpy(),
                          "gap_vs_english_pts": gap.to_numpy(),
                          "worse_than_english": (gap < 0).to_numpy()})
+
+
+# Fifth amendment (2026-11-13): replication direction is judged on measures without a floor.
+# Raw Belebele points cannot show the published direction at 1.5B, where low-resource languages
+# start a few points above the 25% chance level (DECISIONS 2026-11-13).
+BELEBELE_CHANCE = 0.25
+
+
+def _shared_bootstrap(n_items: int, statistic, n_resamples: int, seed: int):
+    """Percentile interval of `statistic(index)` under one item draw shared by all languages."""
+    rng = np.random.default_rng(seed)
+    draws = np.asarray([statistic(rng.integers(0, n_items, n_items))
+                        for _ in range(n_resamples)])
+    return np.nanquantile(draws, [0.025, 0.975], axis=0)
+
+
+def _seed_mean_panel(rows: pd.DataFrame, value: str) -> pd.DataFrame:
+    """item × language panel, averaging repeated runs (calibration seeds) per item."""
+    panel = rows.groupby(["item_id", "lang"])[value].mean().unstack("lang")
+    panel = panel.sort_index().sort_index(axis=1)
+    if panel.isna().any().any():
+        raise ValueError("incomplete item/language panel")
+    return panel.astype(float)
+
+
+def nll_gap_direction(fp16: pd.DataFrame, treated: pd.DataFrame, *, n_resamples: int = 2000,
+                      seed: int = 0) -> pd.DataFrame:
+    """Relative increase in total FLORES NLL per language, minus English's, with paired CIs.
+
+    NLL has no floor, so a language the model barely knows cannot hide its degradation the
+    way near-chance accuracy does. Sentences are parallel, so one bootstrap draw is shared by
+    every language. Several treated runs (seeds) are averaged per sentence.
+    """
+    base, treat = _seed_mean_panel(fp16, "nll_sum"), _seed_mean_panel(treated, "nll_sum")
+    if not base.index.equals(treat.index) or not base.columns.equals(treat.columns):
+        raise ValueError("FP16 and treated rows must cover identical sentences and languages")
+    a, b, langs = base.to_numpy(), treat.to_numpy(), list(base.columns)
+    en = langs.index("en")
+
+    def statistic(index):
+        rel = 100 * (b[index].sum(0) / a[index].sum(0) - 1)
+        return rel - rel[en]
+
+    rel = 100 * (b.sum(0) / a.sum(0) - 1)
+    low, high = _shared_bootstrap(len(a), statistic, n_resamples, seed)
+    return pd.DataFrame({"lang": langs, "rel_increase_pct": rel,
+                         "gap_vs_english_pct": rel - rel[en], "low": low, "high": high,
+                         "worse_than_english": low > 0})
+
+
+def _calibrated_correct(rows: pd.DataFrame) -> pd.DataFrame:
+    """Per-item correctness after removing each run's mean preference for every letter.
+
+    The PRD's letter-bias mitigation (risk register: "also report calibrated accuracy"),
+    the run-level version of prior debiasing (Zheng et al., ICLR 2024, arXiv 2309.03882).
+    """
+    run_key = "run_id" if "run_id" in rows else None
+    out = []
+    for _, group in rows.groupby(([run_key] if run_key else []) + ["lang"]):
+        lp = np.stack(group["letter_logprobs"].map(np.asarray).to_numpy())
+        pred = (lp - lp.mean(axis=0, keepdims=True)).argmax(axis=1)
+        out.append(group[["item_id", "lang"]].assign(
+            correct=(pred == group["gold"].to_numpy()).astype(float)))
+    return pd.concat(out, ignore_index=True)
+
+
+def retention_gap_direction(fp16: pd.DataFrame, treated: pd.DataFrame, *,
+                            chance: float = BELEBELE_CHANCE, n_resamples: int = 2000,
+                            seed: int = 0) -> pd.DataFrame:
+    """Share of above-chance calibrated Belebele accuracy kept, minus English's share.
+
+    retention = (acc_q − chance) / (acc_fp16 − chance). It is undefined (NaN) for a language
+    with no headroom above chance. Chance-adjusted accuracy is a common multiple-choice
+    correction (for example arXiv 2502.12896). A negative gap means the language keeps less of
+    its ability than English. Several treated runs (seeds) are averaged per item.
+    """
+    base = _seed_mean_panel(_calibrated_correct(fp16), "correct")
+    treat = _seed_mean_panel(_calibrated_correct(treated), "correct")
+    if not base.index.equals(treat.index) or not base.columns.equals(treat.columns):
+        raise ValueError("FP16 and treated rows must cover identical items and languages")
+    a, b, langs = base.to_numpy(), treat.to_numpy(), list(base.columns)
+    en = langs.index("en")
+
+    def retention(index):
+        head = a[index].mean(0) - chance
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(head > 1e-12, (b[index].mean(0) - chance) / head, np.nan)
+
+    def statistic(index):
+        r = retention(index)
+        return r - r[en]
+
+    point = retention(np.arange(len(a)))
+    low, high = _shared_bootstrap(len(a), statistic, n_resamples, seed)
+    return pd.DataFrame({"lang": langs, "fp16_calibrated_acc": a.mean(0),
+                         "treated_calibrated_acc": b.mean(0), "retention": point,
+                         "gap_vs_english": point - point[en], "low": low, "high": high,
+                         "worse_than_english": high < 0})
