@@ -22,6 +22,8 @@ Read this before writing anything that claims novelty: README, paper or comments
 | Minimax precision balancing across MoE experts | [Colla-Q](https://arxiv.org/abs/2609.18131); experts are the protected units, rather than languages |
 | Language-proportional calibration sampling for pruning | Multilingual Brain Surgeon (2404.04748) |
 | Worst-language objective in tokenizers | Parity-aware BPE |
+| Fixed KV-cache eviction budgets penalize high-fertility languages; retention-matched (share-of-input) budgets remove the mean gap | "Equal Tokens, Unequal Losses", anonymous ACL submission 2026 (OpenReview 57mHZnnuEe); eviction only |
+| Speculative decoding widens cross-lingual latency gaps (21 languages) | "No Refund for the Token Tax", Oct 2026 preprint; speculation only |
 | Per-language correction of a quantized LLM (rank-2 LoRA per language on INT3 GPTQ Qwen2.5-3B / Llama-3.2-3B); perplexity–accuracy disconnect | [LCD](https://arxiv.org/abs/2608.11786), 2026 preprint; post-hoc adapters, not mixed precision, no worst-language objective |
 
 ## Candidate contributions (novelty remains provisional)
@@ -52,10 +54,14 @@ Search arXiv for "worst-group" OR "minimax" mixed-precision quantization, and fo
   (Oct 2026) shows speculative decoding widens cross-lingual latency gaps across 21 languages
   (English acceptance highest; Finnish relative latency 1.55x to 3.02x on vLLM). Speculative
   decoding alone is not new ground; it covers no quantization, KV compression or composition.
-  "Equal Tokens, Unequal Losses" (OpenReview `57mHZnnuEe`, reported as an ACL ARR Oct 2026
-  submission on fixed KV-cache budgets penalizing languages) could not be opened; **K4 re-read
-  pending** (48 h rule). If it is as described, a per-language finding for fixed-budget eviction
-  alone is not new; the composed audit, the factorial attribution and ParityQuant are untouched.
+  "Equal Tokens, Unequal Losses" (anonymous ACL submission, OpenReview `57mHZnnuEe`) was read in
+  full on 14 Nov (K4 resolved within 48 h). It establishes, for KV eviction alone on Belebele, that
+  fixed token budgets penalize high-fertility languages (+27.2 points at half the English length),
+  that differential retention explains it, and that budgets as shares of input remove it on
+  average. **Do not claim** a per-language fixed-budget eviction penalty, or the share-of-input
+  remedy, as ours; cite it. Still open for WhoPays: eviction composed with weight quantization and
+  speculative decoding (H2's weight × eviction interaction), attribution of the composed gap,
+  Qwen2.5 and MGSM generation, and ParityQuant.
   Corpus: docs/literature/inference-bottlenecks.md.
 
 ## Target venues
