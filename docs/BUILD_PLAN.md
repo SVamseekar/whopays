@@ -91,7 +91,7 @@ experiment is authorized by a passing unit test alone.
   - 2026-11-13: fifth amendment adopted. FLORES NLL rises significantly more than English's in
     9 of 10 languages (W4, English calibration); Belebele retention is lower for 5 of 10 languages
     and higher for none. Direction reproduced (DECISIONS 2026-11-13).
-- [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
+- [x] `parityquant/profile.py` and notebook `03_sensitivity_probe` (K2 PASS at 500 sentences, 2026-11-13; noise flag disclosed with disattenuation). **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
   - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
   - [x] CPU: notebook built; `parityquant/probe.py` runs a resumable profile, decides K2 at 4 bits and reports split-half reliability. A full profile would take about 33 h, so the default is 100 sentences per language (DECISIONS 2026-11-03).
   - 2026-11-12 Kaggle run (`b820e74`) ran out of T4 memory in the first baseline pass (float32
@@ -100,7 +100,7 @@ experiment is authorized by a passing unit test alone.
     literal threshold, min Spearman 0.348 (te, zh) ≤ 0.9, but `noise_limited` is true (split-half
     min 0.548). Profile `probe-e537cbad92f7`, 2,464 rows (RUN_LOG entry 13). M4 is not killed.
     Left unticked: re-profile with more sentences per language before M4 allocation uses it.
-  - 2026-11-13 Kaggle (`4ac29ab`): re-profile at 500 sentences per language running (RUN_LOG entry 15).
+  - 2026-11-13 Kaggle (`4ac29ab`, about 5.2 h): K2 PASS, min Spearman 0.420 (te, zh). The noise flag is on (es reliability 0.892 vs 0.9), but 45 of 55 pairs stay below 0.9 after disattenuation (RUN_LOG entry 15; DECISIONS 2026-11-13).
 
 ## M2 — Audit grid (weeks 5–8)
 - [x] Write and commit `PREREGISTRATION.md` (dated) from PRD §Research questions and §Statistical protocol. Prospective draft amended and committed 2026-10-31, before any M2 run. Remaining H2 inference and fractional-budget comparator specifications are explicitly open in that file.

@@ -27,7 +27,7 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 | 12 | 2026-11-12 | Kaggle T4×2 | 03 sensitivity probe | `b820e74` | CUDA OOM in first baseline pass | none |
 | 13 | 2026-11-12 | Kaggle T4×2 | 03 sensitivity probe | `974c16a` | **K2 PASS, noise-limited** | probe profile, 2,464 rows |
 | 14 | 2026-11-13 | Modal T4 ×≤10 | 02 replication grid, resumed | `4ac29ab` | **grid complete, 308/308**; gap direction not reproduced in raw points (floor effect) | 135 new runs; 286 runs pushed in one commit |
-| 15 | 2026-11-13 | Kaggle T4×2 | 03 sensitivity probe, 500 sentences per language | `4ac29ab` | running | `probe-6f52db8b4007` (in progress) |
+| 15 | 2026-11-13 | Kaggle T4×2 | 03 sensitivity probe, 500 sentences per language | `4ac29ab` | **K2 PASS**; flag `noise_limited` still true (es 0.892), but differences survive disattenuation | `probe-6f52db8b4007`, 2,464 rows |
 
 ## Entries
 
@@ -152,8 +152,13 @@ This is the timeline of every GPU run and of every check whose numbers someone m
   - **The published direction (non-Latin-script and lower-resource languages hurt more, Marchisio et al. 2024) is not reproduced in raw accuracy points.** The low-resource languages hit the chance floor, so a raw-points gap cannot show the published direction. Any metric that corrects for headroom would be a post-hoc choice and needs a preregistration amendment (DECISIONS 2026-11-13).
 
 ### 15. 2026-11-13, Kaggle T4×2: notebook 03 probe at 500 sentences per language, `4ac29ab`
-- Kernel `souramarti/whopays-runner` version 5, status `RUNNING`. Profile `probe-6f52db8b4007` is pushing to HF about every 10 min from the background upload thread.
-- Expected about 7 h. Result pending.
+- Kernel `souramarti/whopays-runner` version 5, status `COMPLETE`. Session about 5.2 h, with 18,797 s from start to the K2 line. Blocks took about 640 s each, and the final projection was 5.12 h. No HF rate-limit waits occurred: the background upload thread committed about every 10 min.
+- The log shows `secret HF_TOKEN not available (ConnectionError)` from the first secret source. The private-dataset fallback supplied the token, and the profile is complete on HF: `probe-6f52db8b4007`, 2,464 rows, all at `4ac29ab`.
+- **K2: PASS.** `min_spearman` 0.420 (te, zh), limit ≤ 0.9. `split_half_min` 0.806 (es), about 0.892 after Spearman-Brown correction, so the `noise_limited` flag is still true under its rule, by 0.008.
+- Corrected split-half reliability for all 11 languages: es 0.892, ru 0.899, en 0.900, ja 0.905, de 0.912, zh 0.928, th 0.948, fr 0.949, sw 0.952, bn 0.985, te 0.985 (`docs/figures/k2_probe500_reliability.csv`).
+- Disattenuation (M1 analysis): each pairwise Spearman divided by the geometric mean of the two languages' reliabilities. 45 of 55 pairs stay below 0.9. Lowest: te–zh 0.44, en–te 0.50, bn–en 0.53, bn–zh 0.55, en–sw 0.56. Bengali and Telugu share a profile (0.89), as do Russian and Thai (0.91). Full matrix: `docs/figures/k2_probe500_pairwise.csv`.
+- Agreement with the 100-sentence profile, Spearman per language at 4 bits: 0.86 (de, zh) to 0.97 (bn).
+- Log: `runs/kaggle/03_sensitivity_probe/20261113T134448Z/whopays-runner.log` (local, gitignored).
 
 ## Results dataset snapshot (2026-11-13)
 
@@ -180,5 +185,5 @@ The audit's 165 done runs are Belebele full-cache cells shared with the replicat
 ## Open items (2026-11-13)
 - Replication gap direction: resolved by the fifth amendment. It is reproduced on FLORES NLL in 9 of 10 languages and on Belebele retention in 5 of 10 (no new GPU runs; DECISIONS 2026-11-13).
 - Modal driver hangs after `run_jobs.map` returns. Until that is fixed, call `push_results` directly.
-- K2: re-profile at 500 sentences per language, to resolve `noise_limited` (DECISIONS 2026-11-13).
+- K2: passed at 500 sentences per language (entry 15). The global noise flag is still on by 0.008, but the pairwise differences survive disattenuation.
 - HF uploads: fixed 2026-11-13. Modal grids make one commit at the end, and interval pushes run in a background thread (DECISIONS 2026-11-13).
