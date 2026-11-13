@@ -83,6 +83,11 @@ experiment is authorized by a passing unit test alone.
   - 2026-11-12 Modal replication grid (`b820e74`, 08:50–10:15 UTC) **stopped, not finished**:
     167 of 308 runs done, 6 partial, 135 not started (RUN_LOG entry 11). **Next GPU check:**
     resume the grid (finished runs skip), then the gap-direction check.
+  - 2026-11-13 Modal (`4ac29ab`, $1.61): **grid complete, 308/308** (RUN_LOG entry 14). Gap
+    direction **not reproduced in raw Belebele points**. W4: only ru and th are worse than en with
+    English calibration, none with multilingual calibration. W3 collapses toward chance, and the
+    low-resource languages hit the 25% floor. The owner must choose between raw points and a
+    headroom-corrected metric (fifth amendment) before this task is ticked (DECISIONS 2026-11-13).
 - [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
   - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
   - [x] CPU: notebook built; `parityquant/probe.py` runs a resumable profile, decides K2 at 4 bits and reports split-half reliability. A full profile would take about 33 h, so the default is 100 sentences per language (DECISIONS 2026-11-03).
@@ -92,6 +97,7 @@ experiment is authorized by a passing unit test alone.
     literal threshold, min Spearman 0.348 (te, zh) ≤ 0.9, but `noise_limited` is true (split-half
     min 0.548). Profile `probe-e537cbad92f7`, 2,464 rows (RUN_LOG entry 13). M4 is not killed.
     Left unticked: re-profile with more sentences per language before M4 allocation uses it.
+  - 2026-11-13 Kaggle (`4ac29ab`): re-profile at 500 sentences per language running (RUN_LOG entry 15).
 
 ## M2 — Audit grid (weeks 5–8)
 - [x] Write and commit `PREREGISTRATION.md` (dated) from PRD §Research questions and §Statistical protocol. Prospective draft amended and committed 2026-10-31, before any M2 run. Remaining H2 inference and fractional-budget comparator specifications are explicitly open in that file.
