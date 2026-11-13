@@ -1,9 +1,16 @@
 ---
 name: ingest-run-log
-description: Use in WhoPays when the user sends back GPU run output, such as Kaggle `.log`/`download*.txt` files, a downloaded `.ipynb`, or pasted log text ("see these logs", "it finished", "here is the output"). Condenses the log with the bundled parser, checks it against the PRD "Done when" and kill gates, confirms results reached the HF dataset, updates the plan and decision docs with logged numbers only, commits, and reports the verdict and next step.
+description: Use in WhoPays when a GPU run finishes or its output arrives — a Kaggle or Modal run launched by Claude completes, the user says "it's done" or "notebook finished", or sends `.log`/`download*.txt` files, a downloaded `.ipynb`, or pasted log text. Condenses the log with the bundled parser, checks it against the PRD "Done when" and kill gates, confirms results reached the HF dataset, updates the plan and decision docs with logged numbers only, commits, and reports the verdict and next step.
 ---
 
 # Ingest a run log
+
+## 0. Get the output yourself
+
+- Kaggle: `python scripts/kaggle_run.py fetch <notebook>` puts the log and executed notebook in
+  `runs/kaggle/<notebook>/<timestamp>/`.
+- Modal: the driver output, plus results on HF (section 4).
+- Only ask the user for files when neither works.
 
 ## 1. Read the files with the parser, not by scrolling
 
@@ -34,6 +41,7 @@ For pasted text, save it to the scratchpad first, then run the parser on that fi
 
 - Look up the "Done when" for this notebook's FR in `docs/PRD.md`, any kill gate (K1–K4) and the relevant `PREREGISTRATION.md` amendment.
 - State plainly the observed value, the limit, and PASS, FAIL or INCOMPLETE. Use the verdict the code printed; do not recompute a looser one.
+- Show **all 11 languages** (en, de, es, fr, ru, zh, ja, th, sw, bn, te) in every per-language table, in that order, never only the extremes. A language with no value gets a row saying why.
 - Note partial patterns (which languages fail and which pass). Note anything that would be read differently under a stricter reading of the rule.
 - On FAIL, or an unexplained result, switch to the `investigate-then-research` skill before proposing fixes. On a kill gate failure, say so and propose the PRD's pivot.
 
@@ -54,7 +62,9 @@ For pasted text, save it to the scratchpad first, then run the parser on that fi
 
 Keep it short:
 - verdict table: check, observed value, limit, result;
-- run time;
+- the 11-language table for the main metric;
+- run time and cost (Modal dollars, Kaggle hours);
 - anything odd;
 - what was updated;
-- the next step: the next notebook via the `gpu-handoff` skill, or a decision the user must make.
+- one `efficiency-research-loop` pass result, in a line;
+- the next step: the next run via the `launch-gpu-run` skill, or a decision the user must make.

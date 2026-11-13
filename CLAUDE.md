@@ -53,8 +53,9 @@ python -m whopays.cli smoke --device mps              # 0.5B, 20 Belebele items,
 1. Open `docs/BUILD_PLAN.md`, take the first unchecked task, and implement it with tests.
 2. Run `pytest -q`. Then regenerate any notebook the task touches.
 3. Tick the task. Append anything non-obvious you decided to `docs/DECISIONS.md` (dated, one paragraph).
-4. If a task needs a GPU to verify, write the notebook, then say exactly what the user should run and what output to paste back.
-5. Commit with a clear message. Push only when the user asks.
+4. If a task needs a GPU to verify, write the notebook, then launch it with the `launch-gpu-run` skill.
+5. At every checkpoint (before a GPU launch, after a run, when planning the next task) run one pass of the `efficiency-research-loop` skill and log it in `docs/EFFICIENCY_LOG.md`. Efficiency research never stops, but it never cuts the research idea or its novelty.
+6. Commit with a clear message. Push only when the user asks.
 
 ## When the user pastes notebook output back
 

@@ -1,80 +1,84 @@
 ---
-name: gpu-handoff
-description: Use in WhoPays whenever the user must run a notebook on a GPU (Kaggle or Google Colab), for example "give me the steps", "run notebook 02", "next GPU run", or after a fix that needs GPU verification. Produces exact platform-specific steps, the expected setup-cell output, a time estimate, check-in points, known errors and what to send back. Uses the platform this session is already on; otherwise picks by job length.
+name: launch-gpu-run
+description: Use in WhoPays whenever work needs a GPU — "run notebook 03", "next GPU run", "launch the grid", a fix that needs GPU verification, or a job list in configs/ to execute. Covers choosing Kaggle or Modal, launching from the M1, monitoring, fetching outputs and the known failure modes of both. Manual Kaggle or Colab steps only when a launch needs the user.
 ---
 
-# GPU handoff (Kaggle or Colab)
+# Launch a GPU run
 
-Claude cannot run notebooks on a GPU. The user runs them, so the steps must be exact.
+Claude launches, monitors and fetches GPU runs from the M1. The user only acts when a token or
+account step is needed. Before launching, run one pass of `efficiency-research-loop` if none
+was done since the last run.
 
 ## 1. Pick the platform
 
-1. **Use the platform this session is already on.** If the user's last run, log or setup output came from Kaggle (`platform: kaggle`, a `.log` download, "Save Version"), use Kaggle. If it came from Colab (`platform: colab`, "Runtime → Run all"), use Colab. Say which, in one line.
-2. **No earlier run in this session:** use Kaggle if the estimate is over about 2.5 h, or if it must run unattended. Use Colab for short debugging runs under about 2.5 h. Free Colab sessions die when the tab is idle or after about 3 h.
-3. If the estimate is over 11 h, split the job (slices, or a re-run that resumes). Kaggle's limit is 12 h per session and about 30 GPU-hours a week.
+| Job | Platform | Why |
+| --- | --- | --- |
+| Job list (`configs/*.yaml`) that fans out by model group | Modal (`modal_run.py jobs`) | Up to 10 T4s in parallel; logged cost $1.61 for 141 replication runs (RUN_LOG 14) |
+| One long sequential notebook (probe, single model) | Kaggle (`kaggle_run.py push`) | Free, 12 h per session, about 30 GPU-hours a week |
+| Short check under about 30 min | Modal (`modal_run.py notebook` or `fr3`) | No queue, no weekly quota |
+| Interactive debugging | Colab (manual, section 6) | User drives |
 
-## 2. Before giving any steps
+Check money and quota first: `modal billing report` and the Kaggle hours already used this
+week (RUN_LOG). Say the choice and the estimated cost in one line. Over 11 h on Kaggle: split.
 
-- Check that the work the notebook needs is committed and pushed to `main`; the setup cell installs `WHOPAYS_REF = "main"`. Note the short SHA (`git log -1 --format=%h`), which the user should see as `code_version`.
-- Notebooks must be regenerated (`python scripts/build_notebooks.py`) and committed.
-- **Estimate the time from logged evidence**, never from guesses:
-  - Find finished runs on the HF dataset: `hf_fs find hf://datasets/Heavy-Dervish1205/whopays-results --name DONE`, compared against the notebook's run IDs. Finished runs take about 5 s each.
-  - Use the per-item rates from the logged throughput tables in `docs/DECISIONS.md`.
-  - Add setup time (about 4 min) and any unmeasured steps (GPTQ quantization, lm-eval, reference installs), and label those as unmeasured.
-  - Give a range plus the single riskiest step.
-- Say where the run is likely to fail first, and that a re-run resumes.
+## 2. Before launching
 
-## 3. Steps: Kaggle
+- Work is committed and pushed; note the SHA. Notebooks regenerated with
+  `python scripts/build_notebooks.py` and committed.
+- **Estimate from logged evidence only**: per-run rates in `docs/DECISIONS.md` and RUN_LOG, plus
+  finished runs on HF (`hf_fs find hf://datasets/Heavy-Dervish1205/whopays-results --name DONE`),
+  which skip in about 5 s. Label unmeasured steps. Give a range and the riskiest step.
+- `modal_run.py jobs <spec> --dry-run` to see the plan.
+- Partial runs from an older commit are refused by the resume guard. Inspect the folder (no
+  `DONE`, not on HF) before deleting it from the Volume; never delete a finished run.
 
-Give these numbered, with the notebook name filled in:
+## 3. Launch
 
-1. kaggle.com → **Create → New Notebook**.
-2. **File → Import Notebook**, paste `https://github.com/SVamseekar/whopays/blob/main/notebooks/<NAME>.ipynb`. If the dialog only takes files, download the raw `.ipynb` from GitHub and drag it in. An imported notebook never updates itself: after any code fix, import again.
-3. Right panel → **Session options**: Accelerator **GPU T4 x2**, Internet **On**. Phone verification is required once per account.
-4. **Add-ons → Secrets** → tick `HF_TOKEN` **for this notebook**. Secrets are attached per notebook, so every new notebook needs the tick.
-5. Run **only the first code cell** and check its output against section 5.
-6. **Save Version → Save & Run All (Commit) → Save**. The tab can be closed.
-7. Progress: **Your Work → the notebook → Versions → the running version → Log**.
-8. If the run dies or reaches 12 h, do Save & Run All again. Finished runs skip.
-9. When it finishes: download the log (it lands in `~/Downloads` as `notebookXXXX.log`; a second `download*.txt` is the same file) or **⋮ → Download** the notebook. Tell Claude the paths.
+```bash
+source .venv/bin/activate
+# Kaggle: one kernel, souramarti/whopays-runner, T4 x2, background run
+python scripts/kaggle_run.py push <notebook> [--ref <full sha>]
+python scripts/kaggle_run.py wait            # or status
+python scripts/kaggle_run.py fetch <notebook>   # log + executed notebook into runs/kaggle/
 
-## 4. Steps: Google Colab
+# Modal: --ref goes BEFORE the subcommand
+python scripts/modal_run.py --ref <sha> jobs configs/<spec>.yaml --chunk-minutes 60
+python scripts/modal_run.py --ref <sha> notebook <notebook>
+```
 
-1. Open `https://colab.research.google.com/github/SVamseekar/whopays/blob/main/notebooks/<NAME>.ipynb`. Opening from GitHub always gives the current version.
-2. **Runtime → Change runtime type → T4 GPU → Save**.
-3. Key icon (**Secrets**): `HF_TOKEN` present with **Notebook access** on. This is once per Google account.
-4. **Runtime → Run all**; click **Grant access** if asked.
-5. Check the first cell's output against section 5.
-6. Keep the tab open and the laptop awake. Long steps (lm-eval, GPTQ) print nothing for a long time; that is normal.
-7. If the session dies: reopen the notebook and **Runtime → Run all**. Finished runs skip.
-8. When it finishes: **File → Download → Download .ipynb** (lands in `~/Downloads`). Tell Claude the path.
+- Run long launches in the background and monitor finished run IDs (count unique IDs, not log
+  lines; lines repeat).
+- `kaggle_run.py push` refuses on a dirty tree. Other agents leave uncommitted files: pass
+  `--ref <full sha>` of the pushed commit instead of cleaning their work.
+- HF access from the M1: the `.env` `HF_TOKEN` is invalid. Prefix with `env -u HF_TOKEN` so
+  the cached `hf` login is used.
 
-## 5. Expected setup output
+## 4. Known failures
 
-- `platform: kaggle | GPU: Tesla T4, Tesla T4` (Kaggle) or `platform: colab | GPU: Tesla T4` (Colab).
-- **No** `secret HF_TOKEN not available` line. A `GH_TOKEN` line is fine; the repo is public.
-- A version table ending `code_version: <SHA from step 2>` or a later commit.
-- Pip "dependency resolver" warnings and "Removing optional packages ... torchvision, torchaudio" are normal.
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Modal driver stays in `run_jobs.map` after Modal shows 0 tasks; nothing pushed | Unknown (open item) | Kill the driver; run `modal_app.push_results.remote(ids)` with the finished IDs (one commit) |
+| HTTP 429 from HF | Too many commits | Default is one bulk commit per grid; do not use `--push-each` for grids |
+| `refusing to resume` | Partial folder from another commit | Section 2 rule, then rerun |
+| `secret HF_TOKEN not available (ConnectionError)` on Kaggle | First secret source failed | Harmless if the private `whopays-secrets` dataset fallback worked; check results reached HF |
+| `OutOfMemoryError` | GPU memory | Read the last 20 lines; investigate, do not retry blindly |
+| `Invalid user token` | HF token revoked | User makes a new Write token; update Modal secret `whopays-hf`, Kaggle dataset `whopays-secrets`, local `.env` |
 
-## 6. Known errors and their fixes
+## 5. After it finishes
 
-| Output | Meaning | Fix |
-|---|---|---|
-| `secret HF_TOKEN not available (BackendError)` (Kaggle) | Secret not attached to this notebook | Add-ons → Secrets → tick `HF_TOKEN`, rerun cell 1 |
-| `secret HF_TOKEN not available (TimeoutException)` on Kaggle | Stale import from before commit `200cea5`, which misdetected Kaggle as Colab | Import the notebook again |
-| `No CUDA GPU attached` | No accelerator selected | Kaggle: GPU T4 x2. Colab: Runtime → T4 GPU |
-| `Restart the runtime before loading a different WhoPays build` | Code changed inside a live kernel | Restart the session, run all |
-| `No files matched allow_patterns=[...]` | That run has no remote checkpoint yet | Normal |
-| `GateError` / K1 not passed | Gate could not rebuild from HF (token or network) | Check `HF_TOKEN`, Internet on |
-| `OutOfMemoryError` | Out of GPU memory | Send the last 20 lines; do not just retry |
-| `Invalid user token` | HF token revoked or wrong | New **Write** token at huggingface.co/settings/tokens; update the Kaggle/Colab secret and the local `.env` |
+Fetch outputs, then follow `ingest-run-log`. Record Modal cost from `modal billing report` in
+the RUN_LOG entry and in `docs/EFFICIENCY_LOG.md` when it confirms a projected saving.
 
-## 7. Check-ins and what to send back
+## 6. Manual fallback (only when the user must act)
 
-- Give one check-in time (usually 30 min) and the exact line that shows progress for this notebook. Examples: `[   done] ... belebele`, `Running loglikelihood requests` past a few thousand, or the FR-3 table.
-- Say what Claude needs back (status counts, gate tables, verdict lines), and that Claude can read results from the HF dataset if the local `.env` token works. Test it without printing it.
-- When the files arrive, follow the "When the user pastes notebook output back" section of `CLAUDE.md`. If a check fails, use the `investigate-then-research` skill.
+Numbered, plain English steps (not caveman: order matters).
 
-## Style
+**Kaggle:** 1. Create → New Notebook. 2. File → Import Notebook,
+`https://github.com/SVamseekar/whopays/blob/main/notebooks/<NAME>.ipynb`. 3. Session options:
+GPU T4 x2, Internet On. 4. Add-ons → Secrets → tick `HF_TOKEN`. 5. Run the first cell only;
+expect `platform: kaggle | GPU: Tesla T4, Tesla T4`, no missing-token line, `code_version` at
+the pushed SHA or later. 6. Save Version → Save & Run All. 7. Send back the log path.
 
-Steps are numbered, short and imperative, in plain English: no compressed or caveman style for steps, because order matters. Give the time estimate before the steps. Say "close the tab" only for Kaggle.
+**Colab:** 1. Open `https://colab.research.google.com/github/SVamseekar/whopays/blob/main/notebooks/<NAME>.ipynb`.
+2. Runtime → T4 GPU. 3. Secrets: `HF_TOKEN` with notebook access. 4. Runtime → Run all; keep
+the tab open. 5. File → Download .ipynb; send back the path. Sessions die after about 3 h.
