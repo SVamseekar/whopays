@@ -10,9 +10,11 @@ from whopays.config import canonical_json, load_jobs
 from whopays.gates import GateError, require_k2
 from whopays.languages import CODES
 from whopays.parityquant.plan import (
+    bits_to_parity,
     build_plan,
     compare_units,
     label_methods,
+    language_increases,
     parity_report,
     write_plan,
 )
@@ -199,3 +201,24 @@ def test_compare_units_reports_agreement_with_the_sentence_map():
     sentence = table[table.unit == 'sentence'].iloc[0]
     assert sentence.same_width_share == 1.0
     assert (table.worst_nats_per_sentence >= sentence.worst_nats_per_sentence - 1e-9).all()
+
+
+def test_language_increases_are_held_out_per_method_and_language():
+    allocations = [{'method': method, 'calib': 'en' if method == 'uniform_en' else 'multi',
+                    'budget': 4.0, 'bit_map': {'model.layers.0': 2 + i}}
+                   for i, method in enumerate(ACCURACY)]
+    table = language_increases(_flores_rows({'allocations': allocations}, INCREASE),
+                               allocations, 'm')
+    te = table[(table.lang == 'te') & (table.method == 'minimax')].iloc[0]
+    assert te.increase == pytest.approx(8) and te.n_items == 200
+
+
+def test_bits_to_parity_interpolates_uniform_worst_language():
+    worst = pd.DataFrame({'budget': [3.0, 3.5, 4.0] * 2,
+                          'method': ['minimax'] * 3 + ['uniform_multi'] * 3,
+                          'worst': [30, 14, 8, 130, 40, 30]})
+    curve = bits_to_parity(worst)
+    # Minimax at 3.0 (30 nats) equals uniform at 4.0: one extra bit.
+    assert curve.loc[curve.budget == 3.0, 'extra_bits'].iloc[0] == pytest.approx(1.0)
+    # Minimax at 4.0 (8) is below anything uniform reaches up to 4 bits: not reported.
+    assert np.isnan(curve.loc[curve.budget == 4.0, 'extra_bits'].iloc[0])

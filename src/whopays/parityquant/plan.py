@@ -61,6 +61,55 @@ def build_plan(rows, model: str, *, budgets: Sequence[float] = BUDGETS,
     return {"allocations": allocations, "jobs": jobs}
 
 
+def language_increases(rows: pd.DataFrame, allocations: Sequence[dict], model: str, *,
+                       task: str = "flores_nll") -> pd.DataFrame:
+    """Mean held-out NLL increase per sentence against FP16, per budget, method and language.
+
+    Long format (budget, method, lang, increase, n_items) for `whopays langtable`.
+    """
+    selected = rows[(rows.model == model) & (rows.task == task)]
+    records = []
+    for budget in sorted({a["budget"] for a in allocations}):
+        labelled = label_methods(selected, allocations, budget)
+        held_out = set(labelled.loc[labelled.method != "fp16", "item_id"])
+        labelled = labelled[labelled.item_id.isin(held_out)]
+        fp16 = labelled[labelled.method == "fp16"].set_index(["lang", "item_id"]).nll_sum
+        for method, group in labelled[labelled.method != "fp16"].groupby("method"):
+            delta = group.set_index(["lang", "item_id"]).nll_sum - fp16.reindex(
+                group.set_index(["lang", "item_id"]).index)
+            for lang, values in delta.groupby(level="lang"):
+                records.append({"budget": budget, "method": method, "lang": lang,
+                                "increase": float(values.mean()), "n_items": int(len(values))})
+    return pd.DataFrame(records)
+
+
+def bits_to_parity(worst: pd.DataFrame, *, method: str = "minimax",
+                   baseline: str = "uniform_multi") -> pd.DataFrame:
+    """Extra uniform bits needed to match `method`'s worst-language degradation at each budget.
+
+    `worst` has budget, method and worst columns. The uniform curve is interpolated linearly
+    between measured budgets; a target outside the measured range gives NaN rather than an
+    extrapolation.
+    """
+    import numpy as np
+
+    curve = worst[worst.method == baseline].sort_values("budget")
+    bits, values = curve.budget.to_numpy(float), curve.worst.to_numpy(float)
+    records = []
+    for budget, target in worst[worst.method == method][["budget", "worst"]].itertuples(
+            index=False):
+        match = np.nan
+        for i in range(len(bits) - 1):
+            low, high = sorted((values[i], values[i + 1]))
+            if low <= target <= high and values[i] != values[i + 1]:
+                frac = (values[i] - target) / (values[i] - values[i + 1])
+                match = bits[i] + frac * (bits[i + 1] - bits[i])
+                break
+        records.append({"budget": budget, "uniform_bits_needed": match,
+                        "extra_bits": match - budget})
+    return pd.DataFrame(records)
+
+
 def compare_units(rows, tokens_per_sentence: dict[str, float], *,
                   budgets: Sequence[float] = BUDGETS, objective: str = "minimax") -> pd.DataFrame:
     """CPU robustness check: how the unit of the sensitivities changes the solved bit maps.
