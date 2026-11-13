@@ -56,6 +56,7 @@ python -m whopays.cli smoke --device mps              # 0.5B, 20 Belebele items,
 4. If a task needs a GPU to verify, write the notebook, then launch it with the `launch-gpu-run` skill.
 5. At every checkpoint (before a GPU launch, after a run, when planning the next task) run one pass of the `efficiency-research-loop` skill and log it in `docs/EFFICIENCY_LOG.md`. Efficiency research never stops, but it never cuts the research idea or its novelty.
 6. Commit with a clear message. Push only when the user asks.
+7. Before a claim goes into the README or paper, run `adversarial-review`. At the end of a session, run `retrospective`.
 
 ## When the user pastes notebook output back
 

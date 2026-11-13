@@ -41,7 +41,8 @@ For pasted text, save it to the scratchpad first, then run the parser on that fi
 
 - Look up the "Done when" for this notebook's FR in `docs/PRD.md`, any kill gate (K1–K4) and the relevant `PREREGISTRATION.md` amendment.
 - State plainly the observed value, the limit, and PASS, FAIL or INCOMPLETE. Use the verdict the code printed; do not recompute a looser one.
-- Show **all 11 languages** (en, de, es, fr, ru, zh, ja, th, sw, bn, te) in every per-language table, in that order, never only the extremes. A language with no value gets a row saying why.
+- Show **all 11 languages** in every per-language table, never only the extremes. Build it with `python -m whopays.cli langtable <long.csv> --value <col> --by <cols> [--where col=value] [--interval low high]`; it uses the canonical order and prints `missing` for absent languages.
+- Label every result **confirmatory** (a preregistered test, as amended before the data was seen) or **exploratory** (anything else, including tests added by an amendment after the data was seen).
 - Note partial patterns (which languages fail and which pass). Note anything that would be read differently under a stricter reading of the rule.
 - On FAIL, or an unexplained result, switch to the `investigate-then-research` skill before proposing fixes. On a kill gate failure, say so and propose the PRD's pivot.
 
@@ -62,7 +63,7 @@ For pasted text, save it to the scratchpad first, then run the parser on that fi
 
 Keep it short:
 - verdict table: check, observed value, limit, result;
-- the 11-language table for the main metric;
+- the 11-language table for the main metric, labelled confirmatory or exploratory;
 - run time and cost (Modal dollars, Kaggle hours);
 - anything odd;
 - what was updated;

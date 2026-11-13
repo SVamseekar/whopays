@@ -41,6 +41,14 @@ def main(argv: list[str] | None = None) -> int:
     p_parity.add_argument("--root", default="results")
     p_parity.add_argument("--out", default="configs")
 
+    p_table = sub.add_parser("langtable", help="all-language markdown table from a long CSV")
+    p_table.add_argument("csv")
+    p_table.add_argument("--value", required=True)
+    p_table.add_argument("--by", nargs="*", default=[], help="columns that become table columns")
+    p_table.add_argument("--where", nargs="*", default=[], help="filters as column=value")
+    p_table.add_argument("--interval", nargs=2, metavar=("LOW", "HIGH"))
+    p_table.add_argument("--digits", type=int, default=2)
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     for noisy in ("httpx", "httpx2", "huggingface_hub", "urllib3"):
@@ -49,6 +57,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "hash":
         for cfg in load_jobs(args.jobs):
             print(cfg.run_id, cfg.task, cfg.lang, cfg.model, cfg.weight, cfg.kv)
+        return 0
+
+    if args.cmd == "langtable":
+        import pandas as pd
+
+        from whopays.report.langtable import language_table
+
+        frame = pd.read_csv(args.csv, keep_default_na=False, na_values=[""])
+        for clause in args.where:
+            column, value = clause.split("=", 1)
+            frame = frame[frame[column].astype(str) == value]
+        print(language_table(frame, args.value, args.by, digits=args.digits,
+                             interval=tuple(args.interval) if args.interval else None))
         return 0
 
     if args.cmd == "grid":
