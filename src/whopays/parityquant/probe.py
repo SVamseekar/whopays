@@ -76,7 +76,7 @@ def run_probe(model: str, *, bits=(2, 3, 4, 8), method: str = "gptq", limit: int
     bundle = (loader or load)(RunConfig(model=model, task="flores_nll", lang="en"))
     texts = probe_texts(limit=limit)
     calibration = _calibration(bundle.tokenizer, calib, seed) if method == "gptq" else None
-    push = hub_sync.ThrottledPush(run_dir) if sync else None
+    push = hub_sync.ThrottledPush(run_dir, background=True) if sync else None
     start, count = time.monotonic(), 0
     per_block = len(bits) * len(texts)
     n_blocks = getattr(bundle.model.config, "num_hidden_layers", 0)

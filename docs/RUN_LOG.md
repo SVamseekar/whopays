@@ -153,5 +153,5 @@ The audit's 132 done runs are Belebele full-cache cells shared with the replicat
 
 ## Open items (2026-11-13)
 - Replication grid: resume the 141 unfinished runs (6 partial, 135 not started). After that, check the gap direction for FR-3.
-- K2: re-profile with more sentences per language, to resolve `noise_limited` (DECISIONS 2026-11-03 rule) before using the profile for M4 allocation.
-- HF uploads: batch commits so that two concurrent jobs stay under the account's commit limit.
+- K2: re-profile at 500 sentences per language, to resolve `noise_limited` (DECISIONS 2026-11-13).
+- HF uploads: fixed 2026-11-13. Modal grids make one commit at the end, and interval pushes run in a background thread (DECISIONS 2026-11-13).

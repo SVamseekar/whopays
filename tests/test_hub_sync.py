@@ -101,3 +101,54 @@ def test_pull_absent_repo_with_valid_token_still_returns_false(tmp_path, monkeyp
     monkeypatch.setenv("HF_TOKEN", "tok")
     with mock.patch("huggingface_hub.snapshot_download", side_effect=_hub_error(404)):
         assert hub_sync.pull_runs(tmp_path) is False
+
+
+def test_background_push_does_not_block_and_skips_while_busy(tmp_path):
+    import threading
+
+    release, started = threading.Event(), threading.Event()
+
+    def slow(_run_dir):
+        started.set()
+        release.wait(5)
+        return True
+
+    now = [0.0]
+    push = hub_sync.ThrottledPush(tmp_path, min_interval=600, clock=lambda: now[0],
+                                  background=True)
+    with mock.patch.object(hub_sync, "push_run", side_effect=slow) as pr:
+        assert push() is True          # started in a thread, returns at once
+        assert started.wait(5)
+        now[0] = 1000
+        assert push() is False         # previous upload still running: skip, do not queue
+        release.set()
+        assert push(force=True) is True  # force waits for the thread, then pushes in-line
+    assert pr.call_count == 2
+
+
+def test_background_push_swallows_errors(tmp_path):
+    push = hub_sync.ThrottledPush(tmp_path, background=True)
+    with mock.patch.object(hub_sync, "push_run", side_effect=OSError("429")):
+        push()
+        push.wait()
+        assert push(force=True) is False
+
+
+def test_push_runs_is_one_commit(tmp_path, monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "tok")
+    for rid in ("r1", "r2", "r3"):
+        (tmp_path / rid).mkdir()
+    with mock.patch.object(hub_sync, "_api") as api:
+        assert hub_sync.push_runs(tmp_path, ["r1", "r3", "missing"]) == ["r1", "r3"]
+    client = api.return_value
+    client.upload_folder.assert_called_once()
+    kwargs = client.upload_folder.call_args.kwargs
+    assert kwargs["folder_path"] == str(tmp_path)
+    assert kwargs["allow_patterns"] == ["r1/*", "r3/*"]
+
+
+def test_push_runs_without_token_is_noop(tmp_path):
+    (tmp_path / "r1").mkdir()
+    with mock.patch.object(hub_sync, "_api") as api:
+        assert hub_sync.push_runs(tmp_path, ["r1"]) == []
+    api.assert_not_called()

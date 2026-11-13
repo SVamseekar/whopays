@@ -5,6 +5,10 @@
     python scripts/modal_run.py notebook 03_sensitivity_probe
     python scripts/modal_run.py jobs configs/audit.yaml --chunk-minutes 60
 
+Results stay on the Modal Volume during the grid; `jobs` uploads every finished run in one
+hub commit at the end (`--push-each` restores per-run pushes). If the local process dies before
+that, re-running the same command skips finished runs and still pushes.
+
 `jobs` fans a job list out over up to 10 T4s in two phases. Phase 1 runs the first chunk of
 every quantized model group, which quantizes it once and stores the weights in the Volume's
 cache. Phase 2 runs every other chunk, loading those weights instead of quantizing again.
@@ -51,7 +55,9 @@ def main() -> int:
     j = sub.add_parser("jobs")
     j.add_argument("spec")
     j.add_argument("--chunk-minutes", type=float, default=60.0)
-    j.add_argument("--no-sync", action="store_true")
+    j.add_argument("--no-sync", action="store_true", help="no hub pulls or pushes at all")
+    j.add_argument("--push-each", action="store_true",
+                   help="push every run as it finishes (default: one commit at the end)")
     j.add_argument("--dry-run", action="store_true", help="print the plan only")
     parser.add_argument("--ref", help="commit to install (default: HEAD, must be on origin)")
     args = parser.parse_args()
@@ -87,7 +93,8 @@ def main() -> int:
         for phase, chunks in (("quantize", first), ("evaluate", rest)):
             print(f"{phase}: {len(chunks)} chunks")
             payload = [[c.model_dump(mode="json") for c in chunk] for chunk in chunks]
-            for results in modal_app.run_jobs.map(payload, kwargs={"sync": not args.no_sync},
+            kwargs = {"sync": not args.no_sync, "push": args.push_each}
+            for results in modal_app.run_jobs.map(payload, kwargs=kwargs,
                                                   return_exceptions=True):
                 if isinstance(results, Exception):
                     failed += 1
@@ -98,6 +105,10 @@ def main() -> int:
                           f"{r['seconds']}s" + (f"  {r['error']}" if r.get("error") else ""))
                     failed += r["status"] == "failed"
         print("failed:", failed)
+        if not args.no_sync and not args.push_each:
+            ids = [c.run_id for chunk in first + rest for c in chunk]
+            pushed = modal_app.push_results.spawn(ids).get(timeout=60 * 60)
+            print(f"pushed {len(pushed)} finished runs to the results dataset in one commit")
         return int(failed > 0)
 
 

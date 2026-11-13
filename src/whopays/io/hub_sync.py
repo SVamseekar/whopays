@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -54,6 +55,32 @@ def push_run(run_dir: Path, *, repo: str | None = None, token: str | None = None
     return True
 
 
+def push_runs(root: Path, run_ids: Iterable[str], *, repo: str | None = None,
+              token: str | None = None) -> list[str]:
+    """Upload many run folders under <root> in one commit; returns the IDs uploaded.
+
+    The hub limits commits per hour per account, so a grid that commits once per run (and
+    once more per flush) from several machines runs into HTTP 429 and hour-long waits.
+    Missing folders are ignored. Without a token nothing is uploaded.
+    """
+    root = Path(root)
+    present = [rid for rid in dict.fromkeys(run_ids) if (root / rid).is_dir()]
+    token = token or get_secret("HF_TOKEN")
+    if not token or not present:
+        if not token:
+            log.info("no HF_TOKEN; skipping push of %d runs", len(present))
+        return []
+    repo = repo or repo_id()
+    api = _api(token)
+    if repo not in _created:
+        api.create_repo(repo, repo_type="dataset", private=True, exist_ok=True)
+        _created.add(repo)
+    api.upload_folder(repo_id=repo, repo_type="dataset", folder_path=str(root),
+                      allow_patterns=[f"{rid}/*" for rid in present],
+                      commit_message=f"sync {len(present)} runs")
+    return present
+
+
 def pull_runs(
     dest: Path,
     run_ids: Iterable[str] | None = None,
@@ -96,21 +123,45 @@ class ThrottledPush:
     """Push a run folder at most once per `min_interval` seconds (HF limits commit rates).
 
     Failures are logged, not raised: the local copy is authoritative and the next push retries.
+    With `background=True`, interval pushes run in a daemon thread, so a rate-limited upload
+    (huggingface_hub sleeps up to an hour on HTTP 429) never stalls the GPU; a push due while
+    one is still running is skipped, not queued. `force=True` waits for any running upload and
+    then pushes in the calling thread, so the final state is always uploaded.
     """
 
-    def __init__(self, run_dir: Path, min_interval: float = 600.0, clock=time.monotonic):
+    def __init__(self, run_dir: Path, min_interval: float = 600.0, clock=time.monotonic,
+                 background: bool = False):
         self.run_dir = Path(run_dir)
         self.min_interval = min_interval
         self.clock = clock
+        self.background = background
         self._last: float | None = None
+        self._thread: threading.Thread | None = None
 
-    def __call__(self, _path: Path | None = None, *, force: bool = False) -> bool:
-        now = self.clock()
-        if not force and self._last is not None and now - self._last < self.min_interval:
-            return False
-        self._last = now
+    def _push(self) -> bool:
         try:
             return push_run(self.run_dir)
         except Exception as exc:  # network, auth, rate limit: keep the GPU job running
             log.warning("hub push of %s failed: %s", self.run_dir.name, exc)
             return False
+
+    def wait(self) -> None:
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
+
+    def __call__(self, _path: Path | None = None, *, force: bool = False) -> bool:
+        now = self.clock()
+        if not force and self._last is not None and now - self._last < self.min_interval:
+            return False
+        if self.background and not force:
+            if self._thread is not None and self._thread.is_alive():
+                return False
+            self._last = now
+            self._thread = threading.Thread(target=self._push, daemon=True,
+                                            name=f"push-{self.run_dir.name}")
+            self._thread.start()
+            return True
+        self.wait()
+        self._last = now
+        return self._push()

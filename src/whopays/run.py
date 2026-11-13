@@ -98,12 +98,13 @@ def _check_meta(run_dir: Path, allow_env_change: bool) -> None:
 
 
 def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flush_every: int,
-             sync_interval: float, allow_env_change: bool) -> JobResult:
+             sync_interval: float, allow_env_change: bool, push: bool = True) -> JobResult:
     run_id = cfg.run_id
     run_dir = root / run_id
     pending_restore = root / f".restore-{run_id}"
     if pending_restore.exists() and not sync:
         raise RuntimeError("incomplete remote restore; retry with sync=True before running")
+    restored = False
     if sync and (not run_dir.exists() or pending_restore.exists()):
         # Persist this before downloading: an interrupted partial download is not local truth.
         root.mkdir(parents=True, exist_ok=True)
@@ -113,7 +114,7 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
             raise RuntimeError("remote progress is unknown after incomplete restore")
         pending_restore.unlink()
     if is_done(run_dir):
-        if sync:
+        if sync and push and not restored:  # a run just pulled from the hub is already there
             hub_sync.ThrottledPush(run_dir, sync_interval)(force=True)
         n = json.loads((run_dir / "DONE").read_text())["n_items"]
         return JobResult(run_id, cfg.task, cfg.lang, "skipped", n_items=n)
@@ -149,15 +150,16 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
              **{k: info[k] for k in ROW_ENV}}
     if calibration and "sha256" in calibration:
         stamp["calib_sha256"] = calibration["sha256"]
-    push = hub_sync.ThrottledPush(run_dir, sync_interval) if sync else None
-    with ResultsWriter(run_dir / ITEMS, flush_every, on_flush=push) as writer:
+    pusher = (hub_sync.ThrottledPush(run_dir, sync_interval, background=True)
+              if sync and push else None)
+    with ResultsWriter(run_dir / ITEMS, flush_every, on_flush=pusher) as writer:
         for row in task(cfg, bundle, writer.done_ids()):
             writer.write({**row, **stamp})
     n_items = len(writer.done_ids())
     to_parquet(run_dir / ITEMS)
     mark_done(run_dir, n_items)
-    if push:
-        push(force=True)
+    if pusher:
+        pusher(force=True)
     return JobResult(run_id, cfg.task, cfg.lang, "done", n_items=n_items)
 
 
@@ -169,12 +171,15 @@ def run(
     sync: bool = True,
     flush_every: int = 50,
     sync_interval: float = 600.0,
+    push: bool = True,
     stop_on_error: bool = False,
     allow_env_change: bool = False,
 ) -> list[JobResult]:
     """Run a job list (YAML path, configs or dicts). Finished runs are skipped.
 
     Jobs are reordered so those sharing weights run back to back (quantizing is expensive).
+    `sync` pulls missing runs from the results dataset; `push=False` keeps the pulls but
+    leaves uploading to the caller (one `hub_sync.push_runs` commit for a whole grid).
     """
     configs = group_by_model(load_jobs(jobs))
     root = Path(root) if root is not None else results_root()
@@ -185,7 +190,8 @@ def run(
             start = time.monotonic()
             try:
                 res = _run_one(cfg, root, models, sync=sync, flush_every=flush_every,
-                               sync_interval=sync_interval, allow_env_change=allow_env_change)
+                               sync_interval=sync_interval, allow_env_change=allow_env_change,
+                               push=push)
             except Exception as exc:
                 if stop_on_error:
                     raise

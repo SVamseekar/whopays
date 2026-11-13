@@ -62,16 +62,34 @@ def environment() -> str:
 
 
 @app.function(timeout=8 * 3600, **COMMON)
-def run_jobs(jobs: list[dict], sync: bool = True) -> list[dict]:
-    """Run one chunk of a job list; finished runs are skipped, so a retry resumes."""
+def run_jobs(jobs: list[dict], sync: bool = True, push: bool = False) -> list[dict]:
+    """Run one chunk of a job list; finished runs are skipped, so a retry resumes.
+
+    Results land on the Volume, which is durable, so by default nothing is pushed per run:
+    `push_results` uploads the whole grid in one commit (HF limits commits per hour).
+    """
     volume.reload()
     from whopays.run import run
 
     try:
-        results = run(jobs, sync=sync)
+        results = run(jobs, sync=sync, push=push)
     finally:
         volume.commit()
     return [r.__dict__ for r in results]
+
+
+@app.function(timeout=60 * 60, image=image, volumes={"/results": volume},
+              secrets=[modal.Secret.from_name("whopays-hf")])
+def push_results(run_ids: list[str]) -> list[str]:
+    """Upload finished run folders from the Volume in one commit. CPU only, no GPU billed."""
+    volume.reload()
+    from pathlib import Path
+
+    from whopays.io import hub_sync
+    from whopays.io.results import is_done
+
+    done = [rid for rid in run_ids if is_done(Path("/results") / rid)]
+    return hub_sync.push_runs(Path("/results"), done)
 
 
 @app.function(timeout=12 * 3600, **COMMON)

@@ -238,3 +238,34 @@ def test_gptq_runs_release_their_calibration_provenance(tmp_path, monkeypatch):
     assert json.loads((run_dir / "calibration.json").read_text()) == prov
     row = pd.read_parquet(run_dir / "items.parquet").iloc[0]
     assert row.calib_sha256 == "abc" and row.calib_source == "wikipedia_128x2048"
+
+
+def test_run_restored_from_hub_is_not_pushed_back(tmp_path, fake_task, loader):
+    from whopays.io import hub_sync
+
+    cfg = RunConfig(**BASE, lang="th")
+    source = tmp_path / "source"
+    run([cfg], root=source, loader=loader, sync=False)
+
+    def fake_pull(dest, run_ids):
+        import shutil
+        shutil.copytree(source / run_ids[0], dest / run_ids[0])
+        return True
+
+    with mock.patch.object(hub_sync, "pull_runs", side_effect=fake_pull), \
+         mock.patch.object(hub_sync, "push_run", return_value=True) as push:
+        [res] = run([cfg], root=tmp_path / "dest", loader=loader)
+    assert res.status == "skipped"
+    push.assert_not_called()  # it is already on the hub: a push would only spend a commit
+
+
+def test_push_false_pulls_but_never_pushes(tmp_path, fake_task, loader):
+    from whopays.io import hub_sync
+
+    with mock.patch.object(hub_sync, "pull_runs", return_value=False) as pull, \
+         mock.patch.object(hub_sync, "push_run", return_value=True) as push:
+        [res] = run([{**BASE, "lang": "bn"}], root=tmp_path, loader=loader, push=False)
+        [again] = run([{**BASE, "lang": "bn"}], root=tmp_path, loader=loader, push=False)
+    assert (res.status, again.status) == ("done", "skipped")
+    pull.assert_called_once_with(tmp_path, [res.run_id])
+    push.assert_not_called()
