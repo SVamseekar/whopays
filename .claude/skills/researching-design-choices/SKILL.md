@@ -28,14 +28,12 @@ reopen one); failed runs or gates (`investigate-then-research`); naming and styl
 2. **Read local constraints.** `docs/PRD.md`, `PREREGISTRATION.md` (amendments included),
    `docs/DECISIONS.md`, `docs/RESEARCH_CONTEXT.md`, the code path. Also: T4 FP16 only, the
    GPU-hour and Modal budget, which results are already seen. List what rules options out.
-3. **Search wide.** At least 8 searches in one turn, each from a different angle: the method's
-   name, arXiv and ACL Anthology, the strongest competing method, multilingual or low-resource
-   variants, known failure modes and critiques, library source or docs, the opposite position,
-   the most recent preprints. Use `extended` mode for niche or recent questions.
-4. **Read deep.** Open 6–10 sources in full. Cite at least 12 distinct sources from at least 3
-   types: peer-reviewed papers, preprints, library source or official docs, benchmark or
-   dataset cards, practitioner writing. Include at least one source that argues against the
-   chosen option, if one exists.
+3. **Search and read by the protocol.** Follow
+   [references/literature-protocol.md](references/literature-protocol.md): scholarly API first
+   (`scripts/litsearch.py`), snowball from seeds, deliberate searches for the case against
+   every option, full reading of the 6–10 deciding sources, evidence graded, citations checked.
+4. **Write the balanced synthesis** (protocol section 6): evidence table, case for and case
+   against each option at equal depth, where sources disagree and why.
 5. **Decide against the repo.** For each option: what the sources say, what local constraints
    allow, the cost in T4-hours or Modal dollars. Pick one. Name what would reverse it.
 6. **Check protocol impact.** If the choice changes a preregistered metric, test, threshold or
@@ -57,15 +55,17 @@ reopen one); failed runs or gates (`investigate-then-research`); naming and styl
 | Gate | Minimum |
 |---|---|
 | Options written before searching | yes |
-| Parallel searches | 8, distinct angles |
+| Searches | 8–15 API queries + 4–8 web searches, in one turn each |
 | Sources read in full | 6–10 |
-| Distinct sources cited | 12, from 3+ types |
-| Dissenting source | 1, if one exists |
+| Distinct sources cited | 12, from 3+ types, all passed `litsearch.py check` |
+| Case against | searched for every option; stated if none found |
+| Corpus saved | `docs/literature/<topic>.md` |
 | Prereg amendment if protocol changes | before the result is seen |
 
 ## Common mistakes
 
 - One search, three abstracts, called research.
+- Searching only for support of the favoured option.
 - Choosing first and searching for support afterwards.
 - Citing a paper from its abstract when the number used is in the body.
 - Letting a paper override a local constraint (T4, budget, preregistration).

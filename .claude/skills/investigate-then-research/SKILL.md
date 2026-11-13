@@ -24,10 +24,13 @@ Never jump from a symptom to a fix. Work through these steps in order and show t
 
 ## 3. Research how the field does it
 
-- Search the web: `standard` mode first, `extended` only if results are thin or outdated. Send independent searches in one turn.
-- Prefer primary sources: papers (arXiv, ACL Anthology), official library docs and library source code. Use blogs only as pointers.
-- For each source, record the exact claim and number you rely on, with the URL. Include at least one source that disagrees or limits the claim, if one exists.
-- Answer three questions: what is standard practice, what are the known failure modes, and what does each option cost on a T4 (GPU-hours)?
+- Follow `.claude/skills/researching-design-choices/references/literature-protocol.md`:
+  scholarly API first, snowball, both sides searched, deciding sources read in full,
+  evidence graded, citations checked, corpus saved to `docs/literature/`.
+- Library behaviour: read the source at the pinned version, plus its issue tracker for the
+  symptom.
+- Answer three questions: what is standard practice, what are the known failure modes, and what
+  does each option cost on a T4 (GPU-hours)?
 
 ## 4. Decide
 

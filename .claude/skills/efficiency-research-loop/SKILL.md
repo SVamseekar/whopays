@@ -31,8 +31,10 @@ grid, H1–H4, K1–K4, ParityQuant's worst-language objective) is never cut to 
      1.5B profile to warm-start 3B.
    - *Statistical efficiency*: paired designs, variance reduction, stratified items, fewer
      seeds where seed variance is logged as small. Same power for less compute.
-3. **Research the top 2–3.** Three or more searches each, in one turn: arXiv or ACL Anthology,
-   the library's source at the pinned version, known failure modes. Choices that change a
+3. **Research the top 2–3** with the light form of
+   `.claude/skills/researching-design-choices/references/literature-protocol.md`: start from
+   `docs/literature/`, then 3+ API or web queries each including one for the case against,
+   the library's source at the pinned version. Choices that change a
    protocol or method go through `researching-design-choices`; fixes for something broken go
    through `investigate-then-research`.
 4. **Validity gate.** Pass only if one holds:
