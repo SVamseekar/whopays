@@ -61,3 +61,4 @@ python -m whopays.cli smoke --device mps              # 0.5B, 20 Belebele items,
 - Compare it against the "Done when" check for that FR in `docs/PRD.md`.
 - If it fails a kill criterion (K1–K4 in the PRD), say so plainly and propose the pivot the PRD defines.
 - Update `docs/BUILD_PLAN.md` status and `docs/DECISIONS.md`.
+- Append an entry to `docs/RUN_LOG.md` (the timeline of every GPU run, including failed, stopped and superseded ones). Refresh its dataset snapshot with `python scripts/run_inventory.py`.

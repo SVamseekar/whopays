@@ -1,6 +1,11 @@
 # Autonomous implementation status
 
-Updated 2026-11-06: K1 passed on Kaggle. The next step is the user's decision on the compute
+Updated 2026-11-13: K1 (2026-11-06) and FR-3 (2026-11-12, Modal) pass. K2 passes at the
+literal threshold but is noise-limited at 100 sentences per language. The notebook-02
+replication grid stopped at 167 of 308 runs and must be resumed. Every GPU run so far is
+listed in [RUN_LOG.md](RUN_LOG.md).
+
+Earlier, 2026-11-06: K1 passed on Kaggle. The next step was the user's decision on the compute
 re-plan (80.1 projected GPU-hours against 60). Notebooks 02-07 and analysis exist, and all
 research code runs on CPU fixtures. Downstream notebooks check K1 from the results dataset.
 

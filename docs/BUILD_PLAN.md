@@ -79,12 +79,19 @@ experiment is authorized by a passing unit test alone.
     collects the run from the M1. **Next GPU check:** `kaggle_run.py push 02_replicate_uniform`.
   - 2026-11-12 Modal run (`6e01035`): **FR-3 PASS**, mean 1.72% (limit 2%), max 4.75% (Spanish;
     French 4.53%, Swahili 2.50% also above 2%); ours lower than GPTQModel in 10 of 11 languages
-    (DECISIONS 2026-11-12). Replication grid running on Modal; gap direction follows.
+    (DECISIONS 2026-11-12).
+  - 2026-11-12 Modal replication grid (`b820e74`, 08:50–10:15 UTC) **stopped, not finished**:
+    167 of 308 runs done, 6 partial, 135 not started (RUN_LOG entry 11). **Next GPU check:**
+    resume the grid (finished runs skip), then the gap-direction check.
 - [ ] `parityquant/profile.py` and notebook `03_sensitivity_probe`. **GPU check, K2 gate:** minimum pairwise Spearman correlation of layer-sensitivity vectors across languages ≤ 0.9.
   - [x] CPU: profile resume rejects a different code version, GPU, torch, transformers, CUDA build or model identity. K2 diversity and timing remain open.
   - [x] CPU: notebook built; `parityquant/probe.py` runs a resumable profile, decides K2 at 4 bits and reports split-half reliability. A full profile would take about 33 h, so the default is 100 sentences per language (DECISIONS 2026-11-03).
   - 2026-11-12 Kaggle run (`b820e74`) ran out of T4 memory in the first baseline pass (float32
     logits at batch 32). Fixed with a per-sequence scorer (`974c16a`); rerun on Kaggle.
+  - 2026-11-12 Kaggle run (`974c16a`, about 4.0 h, about 2 h of it HF 429 waits): **K2 PASS** at the
+    literal threshold, min Spearman 0.348 (te, zh) ≤ 0.9, but `noise_limited` is true (split-half
+    min 0.548). Profile `probe-e537cbad92f7`, 2,464 rows (RUN_LOG entry 13). M4 is not killed.
+    Left unticked: re-profile with more sentences per language before M4 allocation uses it.
 
 ## M2 — Audit grid (weeks 5–8)
 - [x] Write and commit `PREREGISTRATION.md` (dated) from PRD §Research questions and §Statistical protocol. Prospective draft amended and committed 2026-10-31, before any M2 run. Remaining H2 inference and fractional-budget comparator specifications are explicitly open in that file.

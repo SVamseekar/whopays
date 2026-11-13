@@ -43,6 +43,7 @@ For pasted text, save it to the scratchpad first, then run the parser on that fi
 
 ## 5. Record, with logged numbers only
 
+- `docs/RUN_LOG.md`: always append an entry, even for a failed, stopped or superseded run. Give the date and UTC times, platform, commit, notebook, rows written (run IDs or counts), the outcome and the log path. Refresh the snapshot with `python scripts/run_inventory.py`.
 - `docs/BUILD_PLAN.md`: tick the task on PASS. Otherwise add a dated note under it: run date, platform, `code_version`, the key numbers, the verdict and the next GPU check.
 - `docs/DECISIONS.md`: a dated entry when the result changes a plan (re-plan, cut, amendment). Include the environment (torch, transformers, GPU, commit).
 - `docs/IMPLEMENTATION_STATUS.md`: the first paragraph if milestone status changed.
