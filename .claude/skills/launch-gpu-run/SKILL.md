@@ -61,6 +61,8 @@ python scripts/modal_run.py --ref <sha> notebook <notebook>
 | HTTP 429 from HF | Too many commits | Default is one bulk commit per grid; do not use `--push-each` for grids |
 | `refusing to resume` | Partial folder from another commit | Section 2 rule, then rerun |
 | `secret HF_TOKEN not available (ConnectionError)` on Kaggle | First secret source failed | Harmless if the private `whopays-secrets` dataset fallback worked; check results reached HF |
+| `Cannot access kernel 'souramarti/whopays-runner' (Permission 'kernels.get' was denied)` | Kaggle CLI login expired (`~/.kaggle/credentials.json`); the run itself keeps going | User runs `! kaggle auth login`; meanwhile track progress by DONE count on HF (`scripts/parity_eval.py <size>` or `run_inventory.py`) |
+| Background `wait` "completed" but the run is still going | Its output was piped through `tail`, which hides the exit code of a failed status call | Run `kaggle_run.py wait` unpiped in the background; read the output file for the final state |
 | `OutOfMemoryError` | GPU memory | Read the last 20 lines; investigate, do not retry blindly |
 | `Invalid user token` | HF token revoked | User makes a new Write token; update Modal secret `whopays-hf`, Kaggle dataset `whopays-secrets`, local `.env` |
 
