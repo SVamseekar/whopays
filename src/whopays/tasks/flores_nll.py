@@ -109,4 +109,6 @@ def run(cfg: RunConfig, bundle, skip: set[str]) -> Iterator[dict]:
     from whopays.datasets import flores
 
     items = flores(cfg.lang, "devtest")
+    if cfg.offset:
+        items = sorted(items, key=lambda r: r["item_id"])[cfg.offset:]
     yield from score_items(cfg, bundle, items[: cfg.limit] if cfg.limit else items, skip)

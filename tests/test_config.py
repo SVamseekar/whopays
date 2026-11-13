@@ -149,3 +149,12 @@ def test_quant4_cache_recipe_enters_only_quant4_run_ids():
     assert q["kv_recipe"] == config.KV_QUANT_RECIPE == 2  # recipe 2: HQQ axis 1 (per token)
     for kv in ("full", "evict"):
         assert "kv_recipe" not in RunConfig(**base, kv=kv).canonical()
+
+
+def test_offset_changes_id_only_when_set():
+    flores = {**BASE, "task": "flores_nll"}
+    assert RunConfig(**flores).run_id == RunConfig(**flores, offset=0).run_id
+    assert RunConfig(**flores, offset=500).run_id != RunConfig(**flores).run_id
+    assert "offset" not in RunConfig(**flores).canonical()
+    with pytest.raises(ValidationError, match="flores_nll only"):
+        RunConfig(**BASE, offset=500)

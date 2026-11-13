@@ -217,3 +217,25 @@ def test_h1_takes_chance_from_the_task():
     assert result['chance'] == 0.25
     with pytest.raises(ValueError, match='chance'):
         hyp.h1(fp16.drop(columns='task'), treated.drop(columns='task'), n_resamples=10)
+
+
+def _nll_parity(increase_by_method, n=400):
+    rng = np.random.default_rng(3)
+    base = rng.gamma(20, 2, size=n)
+    frames = []
+    for method, inc in increase_by_method.items():
+        for lang, delta in inc.items():
+            frames.append(pd.DataFrame({'item_id': [f'i{i:03d}' for i in range(n)], 'lang': lang,
+                                        'nll_sum': base + delta + rng.normal(0, 0.5, n),
+                                        'method': method}))
+    return pd.concat(frames, ignore_index=True)
+
+
+def test_h4_on_nll_treats_lower_as_better():
+    rows = _nll_parity({'fp16': {'en': 0, 'te': 0}, 'minimax': {'en': 6, 'te': 8},
+                        'average': {'en': 3, 'te': 20}, 'uniform': {'en': 5, 'te': 15}})
+    row = hyp.h4_budget(rows, column='nll_sum', higher_is_better=False, n_resamples=200)
+    assert row['best_baseline'] == 'uniform'
+    assert row['improvement'] == pytest.approx(15 - 8, abs=0.3)
+    assert row['improvement_low'] > 0
+    assert row['worst_minimax'] == pytest.approx(8, abs=0.3)

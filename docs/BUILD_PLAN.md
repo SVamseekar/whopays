@@ -133,6 +133,7 @@ experiment is authorized by a passing unit test alone.
 - [ ] `parityquant/allocate.py`: the minimax MILP (PuLP + CBC), the average objective, uniform and soft-max variants. Test that the budget is met exactly.
   - [x] CPU: `matched_uniform`, the sensitivity-free exact-budget comparator used when the target is not an allowed width. K3 remains open.
   - [x] CPU: `parityquant/plan.py` and `whopays.cli parityquant` solve 4 methods × 3 budgets, write job lists and compute H4; a K2 failure stops them.
+  - [x] 2026-11-14, sixth amendment: sensitivities in nats per parallel sentence; H4 primary on held-out FLORES devtest (items after the probe's 500); accuracy cost on Belebele. 1.5B maps solved: `configs/parityquant_1.5B.yaml`, 18 models, 396 runs.
 - [ ] Notebook `06_parityquant_eval`. **GPU check, K3 gate.**
   - [x] CPU: notebook built. Needs K1 and K2 passes, then bit maps solved locally.
 - [ ] Optional: `parityquant/refine.py` (FR-14). Not built; only useful after a positive K3 (DECISIONS 2026-11-03).

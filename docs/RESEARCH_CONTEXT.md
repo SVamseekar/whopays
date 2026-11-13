@@ -22,6 +22,7 @@ Read this before writing anything that claims novelty: README, paper or comments
 | Minimax precision balancing across MoE experts | [Colla-Q](https://arxiv.org/abs/2609.18131); experts are the protected units, rather than languages |
 | Language-proportional calibration sampling for pruning | Multilingual Brain Surgeon (2404.04748) |
 | Worst-language objective in tokenizers | Parity-aware BPE |
+| Per-language correction of a quantized LLM (rank-2 LoRA per language on INT3 GPTQ Qwen2.5-3B / Llama-3.2-3B); perplexity–accuracy disconnect | [LCD](https://arxiv.org/abs/2608.11786), 2026 preprint; post-hoc adapters, not mixed precision, no worst-language objective |
 
 ## Candidate contributions (novelty remains provisional)
 

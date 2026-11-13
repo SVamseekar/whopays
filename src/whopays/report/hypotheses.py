@@ -159,25 +159,31 @@ def h3_supported(table: pd.DataFrame) -> bool:
 
 
 def h4_budget(rows: pd.DataFrame, *, n_resamples: int = 2000, seed: int = 0,
-              baselines: tuple[str, ...] | None = None) -> dict:
+              baselines: tuple[str, ...] | None = None, column: str = "correct",
+              higher_is_better: bool = True) -> dict:
     """One budget: minimax against the best baseline, with item-paired percentile intervals.
 
-    `rows` holds item_id, lang, correct and method, including `fp16`, `minimax`, and `average`.
-    The best baseline is reselected inside each resample, so its choice is not treated as known.
+    `rows` holds item_id, lang, `column` and method, including `fp16`, `minimax`, and `average`.
+    A language's degradation is its mean change in `column` against FP16, signed so that larger
+    is worse: accuracy drop for `correct`, NLL increase for `nll_sum` (`higher_is_better=False`;
+    sixth amendment). The best baseline is reselected inside each resample, so its choice is not
+    treated as known. Mean cost and price of parity are in the same unit, worse-is-positive.
     """
-    methods = {m: _panel(g).to_numpy() for m, g in rows.groupby("method")}
+    methods = {m: _panel(g, column).to_numpy() for m, g in rows.groupby("method")}
     for required in ("fp16", "minimax", "average"):
         if required not in methods:
             raise ValueError(f"H4 needs the {required} method")
     names = list(baselines or [m for m in methods if m not in ("fp16", "minimax")])
     if len({v.shape for v in methods.values()}) != 1:
         raise ValueError("H4 methods must cover identical items and languages")
+    sign = 1.0 if higher_is_better else -1.0
 
     def estimate(index):
         reference = methods["fp16"][index].mean(axis=0)
-        worst = {m: float((reference - methods[m][index].mean(axis=0)).max())
+        worst = {m: float((sign * (reference - methods[m][index].mean(axis=0))).max())
                  for m in ["minimax", *names]}
-        mean = {m: float(methods[m][index].mean()) for m in ["minimax", "average", *names]}
+        mean = {m: sign * float(methods[m][index].mean())
+                for m in ["minimax", "average", *names]}
         best = min(names, key=lambda m: worst[m])
         return (worst[best] - worst["minimax"], mean[best] - mean["minimax"],
                 mean["average"] - mean["minimax"], best, worst["minimax"], worst[best])
@@ -191,7 +197,8 @@ def h4_budget(rows: pd.DataFrame, *, n_resamples: int = 2000, seed: int = 0,
             "improvement_high": float(high[0]), "mean_cost": point[1],
             "mean_cost_low": float(low[1]), "mean_cost_high": float(high[1]),
             "price_of_parity": point[2], "price_low": float(low[2]), "price_high": float(high[2]),
-            "best_baseline": point[3], "worst_minimax": point[4], "worst_baseline": point[5]}
+            "best_baseline": point[3], "worst_minimax": point[4], "worst_baseline": point[5],
+            "n_items": int(n_items)}
 
 
 def k3_verdict(budgets: list[dict]) -> str:

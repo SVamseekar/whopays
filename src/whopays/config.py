@@ -72,6 +72,8 @@ class RunConfig(BaseModel):
     spec_k: int = Field(4, gt=0)
 
     limit: int | None = Field(None, ge=1)  # first N items only (smoke tests)
+    # FLORES: skip the first N devtest items by item ID (the probe's sentences; sixth amendment)
+    offset: int = Field(0, ge=0)
 
     batch_size: int = Field(8, gt=0)
     tag: str = ""
@@ -93,6 +95,8 @@ class RunConfig(BaseModel):
             raise ValueError("bitmap is required for weight='bitmap' and only allowed there")
         if self.bitmap and not set(self.bitmap.values()) <= ALLOWED_BITS:
             raise ValueError(f"bitmap bits must be in {sorted(ALLOWED_BITS)}")
+        if self.offset and self.task != "flores_nll":
+            raise ValueError("offset applies to flores_nll only")
         if self.spec and self.draft_model is None:
             object.__setattr__(self, "draft_model", DEFAULT_DRAFT)
         return self
@@ -117,6 +121,8 @@ class RunConfig(BaseModel):
             d["kv_recipe"] = KV_QUANT_RECIPE
         if not self.spec:
             del d["draft_model"], d["spec_k"]
+        if not self.offset:
+            del d["offset"]
         return d
 
     @property

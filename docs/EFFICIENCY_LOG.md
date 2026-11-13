@@ -20,9 +20,16 @@ cheaper, what was rejected and why, and what is queued. Numbers come from logged
 | Cheaper method | Per-language sensitivity proxy (Fisher or Hessian trace from calibration gradients) validated against the measured 1.5B probe | The 500-sentence probe took about 5.2 h on Kaggle; 3B would cost more. A validated proxy could also be a contribution | Not started; needs `researching-design-choices` and a K4 search |
 | Cheaper method | Warm-start the 3B profile from the 1.5B profile (probe only the blocks that rank differently) | Fewer probe passes at 3B | Not started |
 | Idle hardware | Fix the Modal driver hang after `run_jobs.map` | Each grid currently needs a manual `push_results.remote` | Open (RUN_LOG open items) |
+| Repeated work | Uniform 3.0 and 4.0 bit maps (all-3 and all-4 GPTQ, en and multi calibration) may equal the replication grid's w3_gptq/w4_gptq models; if the bitmap path is bit-identical, reuse those Belebele runs | Saves 4 of 18 quantized models in the 1.5B ParityQuant evaluation | Needs an equivalence test of the bitmap and uniform GPTQ paths |
+| Idle hardware | Run the 1.5B ParityQuant evaluation (18 models, 396 runs) on Modal fan-out instead of Kaggle | The replication grid averaged under 1 min per run on Modal; Modal money left about $8.40 | Decide at launch against the cost estimate |
 | Cheaper measurement | Plan the 693 remaining audit runs and 308 speed runs by logged per-cell rates; route by cost (Modal versus Kaggle) | Largest remaining compute | Not started |
 
 ## Passes
+
+### 2026-11-14: H4 unit change
+Held-out FLORES evaluation adds one NLL job per bit map (about 9 T4-minutes, projected). The
+per-sentence conversion reuses the existing profile: no new probe run. Two candidates added to
+the backlog (uniform-map reuse, Modal for the ParityQuant grid).
 
 ### 2026-11-13: seeded
 Log created from the savings already recorded in DECISIONS and RUN_LOG. Next pass: before the

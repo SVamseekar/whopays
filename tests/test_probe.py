@@ -10,6 +10,8 @@ from whopays.parityquant.probe import (
     probe_texts,
     sensitivity_tensor,
     solve,
+    to_sentence_units,
+    tokens_per_sentence,
 )
 
 
@@ -128,3 +130,33 @@ def test_run_probe_persists_and_resumes(tiny_model_dir, tmp_path, monkeypatch):
     assert run_probe(**kwargs) == first
     assert load_profile(tmp_path, str(tiny_model_dir), bits=(2,), method='rtn') == first
     assert isinstance(pd.DataFrame(first).sensitivity.iloc[0], float)
+
+
+def test_sentence_units_rescale_each_half_by_its_tokens_per_sentence():
+    rows = [{'layer': 'model.layers.0', 'bits': 4, 'lang': 'te#a', 'sensitivity': 0.1,
+             'parameters': 1},
+            {'layer': 'model.layers.0', 'bits': 4, 'lang': 'te#b', 'sensitivity': 0.3,
+             'parameters': 1}]
+    scaled = to_sentence_units(rows, {'te#a': 200.0, 'te#b': 100.0})
+    assert [r['sensitivity'] for r in scaled] == pytest.approx([20.0, 30.0])
+    with pytest.raises(KeyError):
+        to_sentence_units(rows, {'te#a': 200.0})
+
+
+def test_tokens_per_sentence_counts_scored_tokens_without_specials():
+    class Tok:
+        def __call__(self, text, add_special_tokens=True):
+            assert add_special_tokens is False
+            return {'input_ids': list(range(len(text.split())))}
+
+    scale = tokens_per_sentence(Tok(), {'en#a': ['a b', 'a b c d'], 'te#a': ['x']})
+    assert scale == {'en#a': 3.0, 'te#a': 1.0}
+
+
+def test_sentence_units_reverse_a_token_driven_ranking():
+    # Telugu loses less per token but has five times more tokens per sentence.
+    rows = _rows({'en#a': [0.2, 0.2], 'te#a': [0.1, 0.1]})
+    merged = merge_halves(to_sentence_units(rows, {'en#a': 30.0, 'te#a': 150.0}))
+    total = {lang: sum(r['sensitivity'] for r in merged if r['lang'] == lang)
+             for lang in ('en', 'te')}
+    assert total['te'] > total['en']

@@ -24,6 +24,7 @@ from whopays.languages import CODES
 from whopays.parityquant.allocate import allocate
 from whopays.parityquant.profile import profile
 
+PROBE_LIMIT = 500  # sentences per language in the M4 profile (DECISIONS 2026-11-13)
 PRIMARY_BITS = 4  # K2 reads one width: the uniform baseline's, where budgets 3-4 operate
 K2_THRESHOLD = 0.9
 HALF = "#"
@@ -97,6 +98,34 @@ def run_probe(model: str, *, bits=(2, 3, 4, 8), method: str = "gptq", limit: int
     if push:
         push(force=True)
     return rows
+
+
+def tokens_per_sentence(tokenizer, texts: dict[str, list[str]]) -> dict[str, float]:
+    """Mean scored tokens per sentence for each text group, counted as the NLL scorer counts.
+
+    The scorer prepends one prefix token that is not scored, so special tokens are excluded.
+    """
+    return {key: sum(len(tokenizer(t, add_special_tokens=False)["input_ids"]) for t in group)
+            / len(group) for key, group in texts.items()}
+
+
+def to_sentence_units(rows: Iterable[dict], scale: dict[str, float]) -> list[dict]:
+    """Per-token NLL increases to nats per parallel sentence (sixth amendment).
+
+    A group's profiled sensitivity is its pooled per-token mean, so multiplying by the group's
+    tokens per sentence gives the mean increase in total NLL per sentence exactly. Parallel
+    FLORES sentences hold content fixed, so this unit does not depend on how each language is
+    tokenized (Mielke et al. 2019; Yang, Wilcox and Arnett, EMNLP 2026). Per-token units rank
+    Telugu and Bengali least damaged because they need 5-7 times more tokens per sentence.
+    """
+    return [{**row, "sensitivity": row["sensitivity"] * scale[row["lang"]]} for row in rows]
+
+
+def sentence_scale(model: str, limit: int = PROBE_LIMIT) -> dict[str, float]:
+    """Tokens per probe sentence for every half, from the model's tokenizer (CPU only)."""
+    from transformers import AutoTokenizer
+
+    return tokens_per_sentence(AutoTokenizer.from_pretrained(model), probe_texts(limit=limit))
 
 
 def merge_halves(rows: Iterable[dict]) -> list[dict]:

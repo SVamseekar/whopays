@@ -1,3 +1,4 @@
+import json
 import math
 
 import pytest
@@ -78,3 +79,15 @@ def test_low_memory_nll_matches_batched_nll(tiny_model_dir):
                               strict=True):
         assert n == m
         assert abs(a - b) <= 1e-4 * max(1.0, abs(a))
+
+
+def test_offset_scores_items_after_the_probe_sentences(tmp_path, tiny_model_dir, monkeypatch):
+    fake = [{"item_id": f"flores-devtest-{i:04d}", "text": TEXTS[i % 4]}
+            for i in reversed(range(6))]
+    monkeypatch.setattr(datasets, "flores", lambda lang, split: fake)
+    jobs = [{"model": str(tiny_model_dir), "task": "flores_nll", "lang": "zh", "offset": 4}]
+    [res] = run(jobs, root=tmp_path, loader=lambda c: load(c, device="cpu"), sync=False)
+    assert res.n_items == 2
+    items = (tmp_path / res.run_id / "items.jsonl").read_text().splitlines()
+    ids = {json.loads(line)["item_id"] for line in items}
+    assert ids == {"flores-devtest-0004", "flores-devtest-0005"}

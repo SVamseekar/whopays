@@ -212,3 +212,44 @@ chance. The falsification rule is unchanged: both Spearman intervals include zer
 is reported alongside.
 
 **Unchanged.** H2–H4, the grids, budgets, gates, FR-3 and the K1–K4 kill criteria.
+
+## Sixth amendment — 2026-11-14, before any ParityQuant result
+
+**Disclosure.** No minimax, average or matched-uniform allocation has been run, and no H4
+statistic has been computed. Already seen: the 1.5B uniform W4 and W3 GPTQ results on Belebele
+and on all 1,012 FLORES devtest sentences (replication grid), which are the uniform comparators'
+widths at budgets 3.0 and 4.0, and the K2 sensitivity profile (`probe-6f52db8b4007`, 500
+sentences per language), which is the allocator's input. The reason for this amendment was seen
+in that profile: in the original per-token units, Telugu and Bengali rank 11th and 10th of 11 by
+4-bit summed sensitivity because their FLORES sentences need about 191 and 140 tokens against
+English's 29. The research record is docs/decisions/2026-11-13-h4-degradation-metric.md.
+
+**Allocator unit.** The sensitivity s(l, j, b) is the increase in total NLL per parallel FLORES
+sentence (nats per sentence): the profiled per-token increase of each text half times that
+half's mean scored tokens per sentence, counted with the model's tokenizer
+(`parityquant.probe.to_sentence_units`). Parallel sentences hold content fixed, so this unit does
+not depend on segmentation (Mielke et al., ACL 2019; Yang, Wilcox and Arnett, EMNLP 2026). K2 is
+unaffected: rescaling a language's vector by a constant leaves its Spearman ranks unchanged.
+
+**H4 primary measure.** A language's degradation is its mean increase in total NLL per sentence
+against FP16, on FLORES devtest items after the first 500 by item ID (the sentences the profile
+did not use; 512 per language). Worst-language degradation, the best baseline reselected in
+each resample, and the paired percentile interval (2,000 item resamples, one draw shared across
+parallel languages) follow `report.hypotheses.h4_budget`.
+
+**H4 rule.** Unchanged in form: H4 is falsified if the improvement interval includes zero at two
+or more of the three budgets, or if the mean accuracy cost exceeds one percentage point at two
+or more budgets. Mean accuracy cost is Belebele accuracy averaged over items and languages: the
+baseline that is best on the primary measure (point estimate) minus minimax, with a paired
+interval (`parityquant.plan.parity_report`).
+
+**Secondary, descriptive.** Belebele worst-language accuracy drop and above-chance retention;
+relative NLL increase; answer flips against FP16; and a CPU comparison of the bit maps solved
+under per-sentence, per-token and relative units (`parityquant.plan.compare_units`).
+
+**Limitations stated in advance.** NLL gains need not become accuracy gains (perplexity-accuracy
+disconnect; arXiv 2608.11786), which is why the accuracy condition stays. Belebele passages come
+from FLORES-200 and may include probe sentences; Belebele is therefore not fully held out from
+the allocator.
+
+**Unchanged.** H1–H3, the budgets (3.0, 3.5, 4.0), the four methods, the seeds, K1–K4.

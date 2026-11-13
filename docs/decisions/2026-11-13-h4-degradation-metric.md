@@ -1,7 +1,6 @@
 # Decision: how ParityQuant measures a language's degradation (allocator and H4)
 
-Date: 2026-11-13. Skill: `researching-design-choices`. Status: **proposed, awaiting owner approval**
-(it changes how a preregistered hypothesis is measured).
+Date: 2026-11-13. Skill: `researching-design-choices`. Status: **approved by the owner 2026-11-14; sixth amendment written.**
 
 ## Choice
 
@@ -194,3 +193,19 @@ can see how much the unit choice matters before any GPU run.
 
 **Updated recommendation:** unchanged, D, with the CPU robustness check added. Confidence
 raised to medium-high.
+
+## CPU robustness check (2026-11-14, allocation inputs only)
+
+`parityquant.plan.compare_units` on `probe-6f52db8b4007`, minimax objective. Share of
+parameters whose width matches the per-sentence map, and the worst language's additive
+predicted increase in nats per sentence on the probe sentences (in-sample predictions, not
+results):
+
+| Budget | Per-token map: same width | Relative map: same width | Worst (sentence map) | Worst (per-token map) | Worst (relative map) |
+| --- | --- | --- | --- | --- | --- |
+| 3.0 | 85.7% | 85.7% | te 31.73 | te 35.50 | te 33.24 |
+| 3.5 | 71.4% | 78.6% | te 13.76 | te 17.95 | te 16.56 |
+| 4.0 | 78.6% | 78.6% | te 7.96 | te 9.34 | te 9.01 |
+
+The unit moves 14–29% of the parameters to a different width. Telugu is the worst language under
+every map; the per-token map leaves it 12–30% more predicted damage than the per-sentence map.

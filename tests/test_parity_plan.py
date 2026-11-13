@@ -9,7 +9,13 @@ import pytest
 from whopays.config import canonical_json, load_jobs
 from whopays.gates import GateError, require_k2
 from whopays.languages import CODES
-from whopays.parityquant.plan import build_plan, label_methods, parity_report, write_plan
+from whopays.parityquant.plan import (
+    build_plan,
+    compare_units,
+    label_methods,
+    parity_report,
+    write_plan,
+)
 
 
 def _profile(n_layers=8):
@@ -44,8 +50,9 @@ def test_plan_jobs_cover_all_languages_and_replicate_minimax_seeds():
     plan = build_plan(_profile(), 'm', budgets=(4.0,), seeds=(0, 1, 2))
     jobs = load_jobs(plan['jobs'])
     assert {j.lang for j in jobs} == set(CODES) and {j.weight for j in jobs} == {'bitmap'}
-    en = [j for j in jobs if j.lang == 'en']
+    en = [j for j in jobs if j.lang == 'en' and j.task == 'belebele']
     assert len(en) == 3 + 3  # minimax on 3 seeds, other methods on seed 0
+    assert len([j for j in jobs if j.lang == 'en' and j.task == 'flores_nll']) == 3 + 3
     assert {j.calib for j in en if j.bitmap == next(
         a['bit_map'] for a in plan['allocations'] if a['method'] == 'uniform_en')} >= {'en'}
 
@@ -93,7 +100,7 @@ def test_parity_report_recovers_planted_gain_and_verdict():
                     'budget': budget, 'bit_map': {'model.layers.0': 2 + i}}
                    for budget in (3.0, 3.5, 4.0) for i, method in enumerate(ACCURACY)]
     table, verdict = parity_report(_rows({'allocations': allocations}, ACCURACY), allocations, 'm',
-                                   n_resamples=100)
+                                   primary='belebele', n_resamples=100)
     assert set(table.budget) == {3.0, 3.5, 4.0}
     assert (table.best_baseline == 'uniform_multi').all()
     assert (table.improvement_low > 0).all()
@@ -135,3 +142,60 @@ def test_scale_grid_has_fp16_and_w4_with_an_mgsm_subset():
     assert {j.model for j in jobs} == {QWEN['7B']}
     assert {j.weight for j in jobs} == {'fp16', 'w4_gptq'}
     assert {(j.task, j.limit) for j in jobs} == {('belebele', None), ('mgsm', 30)}
+
+
+def _flores_rows(plan, increase, n=200):
+    rng = np.random.default_rng(11)
+    base = rng.gamma(20, 2, size=n)
+    frames = []
+    ids = [f'flores-devtest-{500 + i:04d}' for i in range(n)]
+    for allocation in plan['allocations']:
+        for lang in ('en', 'te'):
+            frames.append(pd.DataFrame({
+                'item_id': ids, 'lang': lang, 'model': 'm', 'task': 'flores_nll',
+                'weight': 'bitmap', 'calib': allocation['calib'], 'seed': 0,
+                'budget': allocation['budget'], 'bitmap': canonical_json(allocation['bit_map']),
+                'nll_sum': base + increase[allocation['method']][lang]}))
+    probe_ids = [f'flores-devtest-{i:04d}' for i in range(50)]
+    for lang in ('en', 'te'):  # FP16 covers all of devtest; probe items must be dropped
+        frames.append(pd.DataFrame({
+            'item_id': probe_ids + ids, 'lang': lang, 'model': 'm', 'task': 'flores_nll',
+            'weight': 'fp16', 'calib': 'none', 'seed': 0, 'budget': None, 'bitmap': None,
+            'nll_sum': np.concatenate([np.zeros(50), base])}))
+    return pd.concat(frames, ignore_index=True)
+
+
+INCREASE = {'minimax': {'en': 6, 'te': 8}, 'average': {'en': 3, 'te': 20},
+            'uniform_en': {'en': 5, 'te': 18}, 'uniform_multi': {'en': 5, 'te': 15}}
+
+
+def test_parity_report_judges_worst_language_on_held_out_nll_and_cost_on_accuracy():
+    allocations = [{'method': method, 'calib': 'en' if method == 'uniform_en' else 'multi',
+                    'budget': budget, 'bit_map': {'model.layers.0': 2 + i}}
+                   for budget in (3.0, 3.5, 4.0) for i, method in enumerate(ACCURACY)]
+    plan = {'allocations': allocations}
+    rows = pd.concat([_rows(plan, ACCURACY), _flores_rows(plan, INCREASE)], ignore_index=True)
+    table, verdict = parity_report(rows, allocations, 'm', n_resamples=100)
+    assert (table.best_baseline == 'uniform_multi').all()
+    assert table.improvement.iloc[0] == pytest.approx(15 - 8)
+    assert table.n_items.iloc[0] == 200  # probe sentences excluded
+    assert (table.mean_cost < 0.01).all()  # accuracy, from Belebele
+    assert verdict == 'POSITIVE'
+
+
+def test_plan_adds_held_out_flores_jobs_in_sentence_units():
+    plan = build_plan(_profile(), 'm', budgets=(4.0,), seeds=(0,),
+                      tokens_per_sentence={'en': 30.0, 'te': 150.0})
+    flores = [j for j in plan['jobs'] if j['task'] == 'flores_nll']
+    assert flores and all(j['offset'] == 500 for j in flores)
+    assert len(flores) == len([j for j in plan['jobs'] if j['task'] == 'belebele'])
+    assert all(a['unit'] == 'nats_per_sentence' for a in plan['allocations'])
+
+
+def test_compare_units_reports_agreement_with_the_sentence_map():
+    rows = [{**r, 'baseline_nll': 2.0 if r['lang'] == 'en' else 1.0} for r in _profile()]
+    table = compare_units(rows, {'en': 30.0, 'te': 150.0}, budgets=(3.5,))
+    assert set(table.unit) == {'sentence', 'token', 'relative'}
+    sentence = table[table.unit == 'sentence'].iloc[0]
+    assert sentence.same_width_share == 1.0
+    assert (table.worst_nats_per_sentence >= sentence.worst_nats_per_sentence - 1e-9).all()

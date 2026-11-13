@@ -128,11 +128,11 @@ def solve_parity(model: str, root: str, out: str) -> int:
     """Write ParityQuant job lists from a stored profile; refuses a K2 failure."""
     from whopays.gates import require_k2
     from whopays.parityquant.plan import build_plan, write_plan
-    from whopays.parityquant.probe import load_profile
+    from whopays.parityquant.probe import PROBE_LIMIT, load_profile, sentence_scale
 
-    rows = load_profile(root, model)
+    rows = load_profile(root, model, limit=PROBE_LIMIT)
     require_k2(rows)
-    plan = build_plan(rows, model)
+    plan = build_plan(rows, model, tokens_per_sentence=sentence_scale(model, PROBE_LIMIT))
     for path in write_plan(plan, out, model.split("-")[-2]):
         print("wrote", path)
     return 0
