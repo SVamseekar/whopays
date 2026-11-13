@@ -47,6 +47,16 @@ Search arXiv for "worst-group" OR "minimax" mixed-precision quantization, and fo
   falsifiable hypothesis, rather than expecting every low-resource language to lose more.
   This and the FairQuant/Colla-Q overlaps narrow the claims under K4; they do not establish
   that the composed multilingual audit or the specific ParityQuant objective is covered.
+- **14 Nov 2026 (K4 review, from the owner's inference-bottlenecks report):**
+  [No Refund for the Token Tax](https://www.alphaxiv.org/abs/2610.speculative-decoding-token-tax-languages)
+  (Oct 2026) shows speculative decoding widens cross-lingual latency gaps across 21 languages
+  (English acceptance highest; Finnish relative latency 1.55x to 3.02x on vLLM). Speculative
+  decoding alone is not new ground; it covers no quantization, KV compression or composition.
+  "Equal Tokens, Unequal Losses" (OpenReview `57mHZnnuEe`, reported as an ACL ARR Oct 2026
+  submission on fixed KV-cache budgets penalizing languages) could not be opened; **K4 re-read
+  pending** (48 h rule). If it is as described, a per-language finding for fixed-budget eviction
+  alone is not new; the composed audit, the factorial attribution and ParityQuant are untouched.
+  Corpus: docs/literature/inference-bottlenecks.md.
 
 ## Target venues
 
