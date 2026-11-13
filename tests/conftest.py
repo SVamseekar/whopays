@@ -17,7 +17,8 @@ CORPUS = [
 ]
 
 
-def build_tiny_model(path: Path) -> Path:
+def build_tiny_model(path: Path, hidden_size: int = 64, num_attention_heads: int = 4,
+                     num_key_value_heads: int = 2) -> Path:
     import torch
     from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
     from transformers import PreTrainedTokenizerFast, Qwen2Config, Qwen2ForCausalLM
@@ -37,8 +38,9 @@ def build_tiny_model(path: Path) -> Path:
 
     torch.manual_seed(0)
     config = Qwen2Config(
-        vocab_size=len(fast), hidden_size=64, intermediate_size=128, num_hidden_layers=2,
-        num_attention_heads=4, num_key_value_heads=2, max_position_embeddings=4096,
+        vocab_size=len(fast), hidden_size=hidden_size, intermediate_size=2 * hidden_size,
+        num_hidden_layers=2, num_attention_heads=num_attention_heads,
+        num_key_value_heads=num_key_value_heads, max_position_embeddings=4096,
         eos_token_id=fast.eos_token_id, pad_token_id=fast.pad_token_id,
     )
     Qwen2ForCausalLM(config).save_pretrained(path)
@@ -48,6 +50,13 @@ def build_tiny_model(path: Path) -> Path:
 @pytest.fixture(scope="session")
 def tiny_model_dir(tmp_path_factory) -> Path:
     return build_tiny_model(tmp_path_factory.mktemp("tiny-qwen2"))
+
+
+@pytest.fixture(scope="session")
+def tiny_hd128_dir(tmp_path_factory) -> Path:
+    """Head size 128 like Qwen2.5, so HQQ's 64-value groups fall where they do on the real model."""
+    return build_tiny_model(tmp_path_factory.mktemp("tiny-qwen2-hd128"), hidden_size=256,
+                            num_attention_heads=2, num_key_value_heads=1)
 
 
 def pytest_collection_modifyitems(config, items):

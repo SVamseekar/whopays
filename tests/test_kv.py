@@ -32,3 +32,15 @@ def test_full_rollback(tiny_model_dir):
     assert cache.get_seq_length() == 1
     with pytest.raises(ValueError):
         rollback(cache, 2)
+
+
+def test_quantized_cache_uses_per_token_hqq_groups(tiny_model_dir):
+    pytest.importorskip("hqq")
+    from whopays.config import RunConfig
+    from whopays.kv.policies import new_cache
+    from whopays.models.loader import load
+    b = load(RunConfig(model=str(tiny_model_dir), task="mgsm", lang="en"), device="cpu")
+    cache = new_cache(RunConfig(model=str(tiny_model_dir), task="mgsm", lang="en", kv="quant4"),
+                      b.model)
+    layer = cache.layers[0]
+    assert (layer.axis_key, layer.axis_value, layer.nbits) == (1, 1, 4)

@@ -32,6 +32,11 @@ from whopays.config import RunConfig
 from whopays.tasks import register
 
 MAX_NEW_TOKENS = 256
+# KV policies generated in batches like the full cache. The 4-bit cache qualifies because its
+# HQQ groups stay within one sequence (kv.policies.QUANT_AXIS), so batching changes only FP16
+# batch numerics, as for the full cache; tests check rows equal batch-1 rows in fp32.
+# Eviction still runs one sequence at a time. Speculative decoding always does (speed grid).
+BATCHED_KV = {"full", "quant4"}
 
 # lm-eval mgsm utils.py: question marker and "step-by-step answer" cue per language.
 PROMPTS = {
@@ -103,7 +108,7 @@ def truncate_at_stop(text: str, lang: str) -> tuple[str, bool]:
 def generate_batch(bundle, cfg: RunConfig, prompts: Sequence[str]) -> list[dict]:
     if cfg.spec and bundle.draft is None:
         raise NotImplementedError("M2 speculative generation needs a bundle loaded with a draft")
-    if cfg.spec or cfg.kv != "full":
+    if cfg.spec or cfg.kv not in BATCHED_KV:
         from whopays.decoding.speculative import generate
 
         results = []
@@ -124,8 +129,13 @@ def generate_batch(bundle, cfg: RunConfig, prompts: Sequence[str]) -> list[dict]
     tok, model = bundle.tokenizer, bundle.model
     tok.padding_side = "left"
     enc = tok(list(prompts), return_tensors="pt", padding=True).to(bundle.device)
+    extra = {}
+    if cfg.kv == "quant4":
+        from whopays.kv.policies import new_cache
+
+        extra["past_key_values"] = new_cache(cfg, model)
     out = model.generate(
-        **enc, max_new_tokens=MAX_NEW_TOKENS, do_sample=False, num_beams=1,
+        **enc, **extra, max_new_tokens=MAX_NEW_TOKENS, do_sample=False, num_beams=1,
         stop_strings=[PROMPTS[cfg.lang][0]], tokenizer=tok,
         pad_token_id=tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id,
         # Pure greedy: override Qwen's generation_config (repetition_penalty=1.1, sampling

@@ -139,3 +139,13 @@ def test_fp16_baselines_keep_their_logged_run_ids():
 
     ids = {c.run_id for c in load_jobs(m0_fp16([K1_MODEL]))}
     assert {"a0fc2d0018cc", "b3cbde1ac3c0", "2e3ea51a8f75"} <= ids
+
+
+def test_quant4_cache_recipe_enters_only_quant4_run_ids():
+    from whopays import config
+
+    base = dict(model="Qwen/Qwen2.5-1.5B-Instruct", task="mgsm", lang="te")
+    q = RunConfig(**base, kv="quant4").canonical()
+    assert q["kv_recipe"] == config.KV_QUANT_RECIPE == 2  # recipe 2: HQQ axis 1 (per token)
+    for kv in ("full", "evict"):
+        assert "kv_recipe" not in RunConfig(**base, kv=kv).canonical()

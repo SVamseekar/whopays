@@ -105,6 +105,9 @@ experiment is authorized by a passing unit test alone.
 ## M2 — Audit grid (weeks 5–8)
 - [x] Write and commit `PREREGISTRATION.md` (dated) from PRD §Research questions and §Statistical protocol. Prospective draft amended and committed 2026-10-31, before any M2 run. Remaining H2 inference and fractional-budget comparator specifications are explicitly open in that file.
 - [ ] `kv/policies.py`: full, 4-bit quantized cache, fixed 256-token eviction, behind one interface (FR-4).
+  - [x] CPU (2026-11-13): 4-bit cache uses per-token HQQ groups (axis 1) and MGSM batches it;
+    batch-4 equals batch-1 in fp32; `KV_QUANT_RECIPE` in quant4 run IDs (DECISIONS 2026-11-13).
+    **Next GPU check:** quant4 batch 8 vs batch 1 on 16 MGSM problems (en, te), about 0.3 h.
   - [x] Implement interface, eviction, residual-only rollback and cache storage accounting;
     CPU tests including absolute RoPE positions. Actual HQQ/T4 acceptance remains open.
 - [ ] `decoding/speculative.py`: greedy draft-verify, k = 4, logging. The exactness test against plain greedy is mandatory (FR-5).

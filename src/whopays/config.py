@@ -38,6 +38,11 @@ Task = Literal["belebele", "mgsm", "flores_nll"]
 # (bf16, v1 asymmetric zeros, 2026-11-07) is dropped from the canonical form, so its runs keep
 # their IDs as a record; recipe 2 (FP16, gptq_v2) gets new ones.
 GPTQMODEL_RECIPE = 2
+# 4-bit KV cache recipe. 1: HQQ axis 0 (hqq's default; groups strided across heads, tokens and
+# batch rows). 2: HQQ axis 1, per-token groups of 64 inside one head vector, as transformers
+# recommends for HQQ and KIVI's 4-bit per-token setting (DECISIONS 2026-11-13). No recipe-1
+# result was ever logged.
+KV_QUANT_RECIPE = 2
 CALIBRATED: set[str] = {"w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
 GROUPED: set[str] = {"w8_rtn", "w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
 # Execution details: never part of the hash, so a smaller batch on a smaller GPU resumes the run.
@@ -108,6 +113,8 @@ class RunConfig(BaseModel):
             del d["bitmap"], d["budget"]
         if self.kv != "evict":
             del d["kv_budget"]
+        if self.kv == "quant4":
+            d["kv_recipe"] = KV_QUANT_RECIPE
         if not self.spec:
             del d["draft_model"], d["spec_k"]
         return d

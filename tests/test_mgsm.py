@@ -96,3 +96,21 @@ def test_mgsm_download_is_parallel():
     en, te = datasets.mgsm("en"), datasets.mgsm("te")
     assert len(en) == len(te) == 250
     assert [i["gold"] for i in en] == [i["gold"] for i in te]
+
+
+def test_quantized_cache_batches_per_sequence(tiny_hd128_dir, monkeypatch):
+    """Batched quant4 generation equals batch-1 generation row by row (fp32 CPU), including
+    residual flushes, because HQQ groups (axis 1) never span sequences."""
+    pytest.importorskip("hqq")
+    from whopays.kv import policies
+    monkeypatch.setattr(mgsm, "MAX_NEW_TOKENS", 20)
+    monkeypatch.setattr(policies, "QUANT_RESIDUAL", 4)
+    b = load(RunConfig(model=str(tiny_hd128_dir), task="mgsm", lang="en"), device="cpu")
+    one = RunConfig(model=str(tiny_hd128_dir), task="mgsm", lang="en", kv="quant4", batch_size=1)
+    four = RunConfig(model=str(tiny_hd128_dir), task="mgsm", lang="en", kv="quant4", batch_size=4)
+    qs = [{"item_id": f"m{i}", "question": "What is " + "x " * (3 * i) + f"{i}?", "gold": i}
+          for i in range(4)]
+    single = [r["output_text"] for r in mgsm.score_items(one, b, qs, set())]
+    batched = list(mgsm.score_items(four, b, qs, set()))
+    assert [r["output_text"] for r in batched] == single
+    assert all(r["batch_size"] == 4 for r in batched)

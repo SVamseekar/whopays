@@ -13,14 +13,26 @@ from transformers.cache_utils import Cache, QuantizedLayer
 
 from whopays.config import RunConfig
 
+# HQQ groups for the 4-bit cache: axis 1 puts each 64-value group inside one token's head
+# vector (Qwen2.5 head size 128), which is what the transformers docs recommend for HQQ
+# ("For the hqq backend, we recommend setting the axis_key and axis_value parameters to 1",
+# docs/transformers/kv_cache). The library default, axis 0, strides each group across heads,
+# positions and, in a batch, other sequences (hqq 0.2.8 core/quantize.py reshapes to
+# [group_size, -1]). DECISIONS 2026-11-12.
+QUANT_AXIS = 1
+QUANT_RESIDUAL = 128  # transformers default: recent tokens kept in FP16 before flushing
+
 
 def new_cache(cfg: RunConfig, model) -> Cache:
-    """Create a per-sequence cache; HQQ is needed only for the quant4 policy."""
+    """Create a cache; HQQ is needed only for the quant4 policy. A quant4 cache serves a whole
+    batch: with per-token groups each sequence is quantized exactly as it would be alone."""
     if cfg.kv == "quant4":
         from transformers import QuantizedCache
 
         try:
-            return QuantizedCache(backend="hqq", config=model.config, nbits=4)
+            return QuantizedCache(backend="hqq", config=model.config, nbits=4,
+                                  axis_key=QUANT_AXIS, axis_value=QUANT_AXIS,
+                                  residual_length=QUANT_RESIDUAL)
         except ImportError as exc:
             raise ImportError("kv='quant4' requires HQQ; install whopays[gpu]") from exc
     return DynamicCache(config=model.config)
