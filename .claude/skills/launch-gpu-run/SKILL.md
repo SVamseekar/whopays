@@ -13,7 +13,7 @@ was done since the last run.
 
 | Job | Platform | Why |
 | --- | --- | --- |
-| Job list (`configs/*.yaml`) that fans out by model group | Modal (`modal_run.py jobs`) | Up to 10 T4s in parallel; logged cost $1.61 for 141 replication runs (RUN_LOG 14) |
+| Job list (`configs/*.yaml`) that fans out by model group | Modal (`modal_run.py jobs`) | Up to 10 T4s in parallel; logged cost 1.61 USD for 141 replication runs (RUN_LOG 14) |
 | One long sequential notebook (probe, single model) | Kaggle (`kaggle_run.py push`) | Free, 12 h per session, about 30 GPU-hours a week |
 | Short check under about 30 min | Modal (`modal_run.py notebook` or `fr3`) | No queue, no weekly quota |
 | Interactive debugging | Colab (manual, section 6) | User drives |

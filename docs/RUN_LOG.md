@@ -28,6 +28,7 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 | 13 | 2026-11-12 | Kaggle T4×2 | 03 sensitivity probe | `974c16a` | **K2 PASS, noise-limited** | probe profile, 2,464 rows |
 | 14 | 2026-11-13 | Modal T4 ×≤10 | 02 replication grid, resumed | `4ac29ab` | **grid complete, 308/308**; gap direction not reproduced in raw points (floor effect) | 135 new runs; 286 runs pushed in one commit |
 | 15 | 2026-11-13 | Kaggle T4×2 | 03 sensitivity probe, 500 sentences per language | `4ac29ab` | **K2 PASS**; flag `noise_limited` still true (es 0.892), but differences survive disattenuation | `probe-6f52db8b4007`, 2,464 rows |
+| 16 | 2026-11-14 | Kaggle T4×2 | 06 ParityQuant evaluation, 1.5B | `2a7caef` | **running** | — |
 
 ## Entries
 
@@ -159,6 +160,11 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 - Disattenuation (M1 analysis): each pairwise Spearman divided by the geometric mean of the two languages' reliabilities. 45 of 55 pairs stay below 0.9. Lowest: te–zh 0.44, en–te 0.50, bn–en 0.53, bn–zh 0.55, en–sw 0.56. Bengali and Telugu share a profile (0.89), as do Russian and Thai (0.91). Full matrix: `docs/figures/k2_probe500_pairwise.csv`.
 - Agreement with the 100-sentence profile, Spearman per language at 4 bits: 0.86 (de, zh) to 0.97 (bn).
 - Log: `runs/kaggle/03_sensitivity_probe/20261113T134448Z/whopays-runner.log` (local, gitignored).
+
+### 16. 2026-11-14, Kaggle T4×2: notebook 06 ParityQuant evaluation, 1.5B, `2a7caef`
+- Kernel `souramarti/whopays-runner` version 6, launched from the M1 with `kaggle_run.py push --ref 2a7caef`.
+- Job list `configs/parityquant_1.5B.yaml` (sixth amendment): 18 quantized models, 396 runs (198 Belebele, 198 held-out FLORES devtest items after the first 500).
+- Projected about 11 T4-hours, about 6 h wall (EFFICIENCY_LOG 2026-11-14). Outcome: pending.
 
 ## Results dataset snapshot (2026-11-13)
 

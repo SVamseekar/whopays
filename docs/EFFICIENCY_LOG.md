@@ -20,11 +20,23 @@ cheaper, what was rejected and why, and what is queued. Numbers come from logged
 | Cheaper method | Per-language sensitivity proxy (Fisher or Hessian trace from calibration gradients) validated against the measured 1.5B probe | The 500-sentence probe took about 5.2 h on Kaggle; 3B would cost more. A validated proxy could also be a contribution | Not started; needs `researching-design-choices` and a K4 search |
 | Cheaper method | Warm-start the 3B profile from the 1.5B profile (probe only the blocks that rank differently) | Fewer probe passes at 3B | Not started |
 | Idle hardware | Fix the Modal driver hang after `run_jobs.map` | Each grid currently needs a manual `push_results.remote` | Open (RUN_LOG open items) |
-| Repeated work | Uniform 3.0 and 4.0 bit maps (all-3 and all-4 GPTQ, en and multi calibration) may equal the replication grid's w3_gptq/w4_gptq models; if the bitmap path is bit-identical, reuse those Belebele runs | Saves 4 of 18 quantized models in the 1.5B ParityQuant evaluation | Needs an equivalence test of the bitmap and uniform GPTQ paths |
-| Idle hardware | Run the 1.5B ParityQuant evaluation (18 models, 396 runs) on Modal fan-out instead of Kaggle | The replication grid averaged under 1 min per run on Modal; Modal money left about $8.40 | Decide at launch against the cost estimate |
 | Cheaper measurement | Plan the 693 remaining audit runs and 308 speed runs by logged per-cell rates; route by cost (Modal versus Kaggle) | Largest remaining compute | Not started |
 
 ## Passes
+
+### 2026-11-14: before the 1.5B ParityQuant launch
+- Cost picture (projected from logged rates, DECISIONS 2026-11-12): per quantized 1.5B model about
+  20 T4-min GPTQ, 13 Belebele (18.7 less the logged 31% prefill saving), 4 held-out FLORES
+  (7.2 for all of devtest, about half the items). 18 models: about 11 T4-hours, about 6 h wall
+  on Kaggle T4 x2.
+- Rejected, Modal fan-out: at about 0.85 USD per T4-hour (logged: 1.61 USD for 1.9 T4-hours)
+  the grid costs about 9 USD, above the 8.40 left.
+- Rejected, reuse of the replication grid's uniform W3/W4 models for the uniform comparators:
+  the code path is the same (`resolve_bitmap` expands an int and an all-equal block map to the
+  same per-layer widths), but held-out FLORES would come from runs batched over all of devtest,
+  so batch composition differs (near-tie FP16 numerics) in the baseline arm of the H4
+  comparison. Saving about 2.5 of 11 T4-hours on free Kaggle time does not justify that caveat.
+- Launched on Kaggle at `2a7caef`.
 
 ### 2026-11-14: H4 unit change
 Held-out FLORES evaluation adds one NLL job per bit map (about 9 T4-minutes, projected). The
