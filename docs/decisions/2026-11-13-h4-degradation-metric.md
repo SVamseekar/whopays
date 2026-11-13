@@ -160,3 +160,37 @@ NLL ranks languages against human judgements of quantization damage.
 LCD (arXiv 2608.11786, 2026) corrects quantized Qwen2.5-3B per language with LoRA adapters. It
 is not mixed precision and has no worst-language objective; add it to RESEARCH_CONTEXT as
 adjacent work.
+
+## Round 2 (owner asked for more research on the most efficient solution)
+
+Further options considered: bits per byte (BPB), bits per character (BPC), Information Parity,
+excess-loss (baseline-subtracted) group DRO, and a CPU robustness check across units.
+
+| # | Source | Type | Claim used | Grade |
+| --- | --- | --- | --- | --- |
+| 18 | Yang, Wilcox & Arnett, "Apples to Apples?", EMNLP 2026, [arXiv 2608.25089](https://arxiv.org/abs/2608.25089) (full text read, §3 and Limitations) | peer-reviewed | "Normalization over tokens, characters, or bytes introduces systematic biases and is unsuitable for cross-tokenizer or cross-lingual comparison." BPB and BPC suit cross-tokenizer comparison within one language only; Information Parity and BPEC are transformations of Sent-NLL. Sent-NLL = sum of token NLL over parallel text, "normalizes by meaning rather than representation units". Limitation: needs high-quality parallel text (FLORES provides it); Sent-NLL rankings vary more across datasets, which the authors argue reflects real content differences | Strong |
+| 19 | Zhou et al., Distributionally Robust Multilingual MT, EMNLP 2021, [doi](https://doi.org/10.18653/v1/2021.emnlp-main.458) (full text read) | peer-reviewed | Worst-case over language pairs uses token-level loss with a baseline loss subtracted before the max (after Oren et al. 2019); "what are the right baseline losses?" is left open; the choice of baseline changed which dataset benefited | Strong |
+| 20 | Oren et al., Distributionally Robust Language Modeling, EMNLP 2019, [doi](https://doi.org/10.18653/v1/d19-1432) | peer-reviewed | Subtract a per-group baseline before the worst case, so groups with high irreducible loss do not dominate | Strong |
+| 21 | DoReMi, Xie et al., NeurIPS 2023, [doi](https://doi.org/10.52202/075280-3059) | peer-reviewed | Group DRO over domains on excess loss relative to a reference model | Moderate (abstract read) |
+| 22 | Vowel Signs Are Not Letters, 2026, [arXiv 2608.26449](https://arxiv.org/abs/2608.26449) | preprint | Per-token loss across different segmentations measures different quantities | Weak |
+
+**What this adds.**
+- BPB and BPC are rejected: both carry script bias across languages ([18]); BPC penalizes
+  logographic Chinese.
+- Our degradation (quantized minus FP16 on the same text) is already an excess loss with the
+  FP16 model as the baseline, which is the construction the multilingual DRO literature uses to
+  stop high-loss groups dominating a max ([19], [20], [21]). The open question those papers
+  leave, the right baseline, is answered here by the FP16 model itself.
+- The remaining choice is the unit of that excess loss. Token-level (as in [19]) is biased
+  across languages by segmentation ([2], [18], [22]); sentence-level on parallel text is the
+  only unit [18] finds suitable across languages.
+
+**Efficiency.** Option D costs no new probe GPU time: the per-token profile converts to
+per-sentence units exactly with the probe's own token counts, computed on the M1. Its held-out
+test adds about 9 T4-minutes per bit map. BPB, BPC and Information Parity would cost the same
+but are biased or redundant. A free robustness check: solve the allocations under per-sentence,
+relative and per-token units on the M1 and report how much the bit maps differ, so a reviewer
+can see how much the unit choice matters before any GPU run.
+
+**Updated recommendation:** unchanged, D, with the CPU robustness check added. Confidence
+raised to medium-high.

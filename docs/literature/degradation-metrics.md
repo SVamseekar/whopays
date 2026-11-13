@@ -29,3 +29,12 @@ Screened and dropped: Open LLM Leaderboard normalization (docs, kept in the deci
 physics-education normalized-gain debate beyond 1612.09180 (analogy only); mixed-precision
 proxy papers RAMP 2609.28262 and TASA 2607.00908 (vision or task-specific calibration, not
 cross-lingual units).
+
+Added 2026-11-13 (round 2):
+
+| Work | Year | Venue | Grade | Relevance |
+| --- | --- | --- | --- | --- |
+| Zhou et al., Distributionally Robust Multilingual MT (W3197336992) | 2021 | EMNLP | Strong | Baseline-subtracted worst-case over languages; right baseline left open |
+| Oren et al., Distributionally Robust Language Modeling (W2970789589) | 2019 | EMNLP | Strong | Per-group baseline before the max |
+| Xie et al., DoReMi (W7133216852) | 2023 | NeurIPS | Moderate | Group DRO on excess loss vs reference model |
+| Vowel Signs Are Not Letters (arXiv 2608.26449) | 2026 | preprint | Weak | Per-token loss not comparable across segmentations |
