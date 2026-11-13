@@ -158,3 +158,10 @@ def test_offset_changes_id_only_when_set():
     assert "offset" not in RunConfig(**flores).canonical()
     with pytest.raises(ValidationError, match="flores_nll only"):
         RunConfig(**BASE, offset=500)
+
+
+def test_evict_share_is_belebele_only_and_keeps_its_budget_in_the_id():
+    cfg = RunConfig(**{**BASE, "task": "belebele"}, kv="evict_share")
+    assert cfg.canonical()["kv_budget"] == 256
+    with pytest.raises(ValidationError, match="belebele only"):
+        RunConfig(**{**BASE, "task": "mgsm"}, kv="evict_share")

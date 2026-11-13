@@ -253,3 +253,26 @@ from FLORES-200 and may include probe sentences; Belebele is therefore not fully
 the allocator.
 
 **Unchanged.** H1–H3, the budgets (3.0, 3.5, 4.0), the four methods, the seeds, K1–K4.
+
+## Seventh amendment — 2026-11-14, exploratory, before any eviction result
+
+**Disclosure.** No eviction result exists: the 165 finished audit runs are full-cache cells, and
+no `evict` run has been made. This amendment follows reading "Equal Tokens, Unequal Losses"
+(anonymous ACL submission 2026, OpenReview 57mHZnnuEe), which reports that fixed token budgets
+for KV-cache eviction penalize high-fertility languages and that retention-matched budgets
+remove the mean gap.
+
+**Added cell (exploratory, not confirmatory).** `kv = evict_share` on 1.5B Belebele at the four
+weight levels (FP16, W8 RTN, W4 and W3 GPTQ at multilingual calibration, seed 0): 44 runs,
+`configs/exploratory_evict_share.yaml`. Each item keeps sink plus recent tokens up to
+max(8, round(256 × its context tokens / the parallel English item's context tokens)), so every
+language keeps the share of its passage that 256 tokens is of English's (`tasks.belebele.share_budget`).
+English items get exactly the `evict` cell's budget.
+
+**Use.** Descriptive only: each language's gap under `evict` beside its gap under `evict_share`,
+and the weight × eviction interaction under each, with paired bootstrap intervals. No
+hypothesis, gate or multiple-comparison family changes. The preregistered `evict` cell (fixed
+256 tokens) stays in H2 and the Shapley attribution unchanged. Retained context share per item
+(`kept_context_tokens / context_tokens`) is reported for both eviction cells.
+
+**Unchanged.** H1–H4, grids, budgets, gates, K1–K4.

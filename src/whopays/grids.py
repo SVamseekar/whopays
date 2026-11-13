@@ -64,6 +64,12 @@ def audit_grid(models: Sequence[str] = (QWEN["1.5B"], QWEN["3B"]),
     return jobs
 
 
+def exploratory_evict_share_grid(models: Sequence[str] = (QWEN["1.5B"],)) -> list[dict]:
+    """Seventh amendment, exploratory: retention-matched eviction on Belebele, 4 weight levels."""
+    return [{"model": m, "task": "belebele", "lang": "all", "kv": "evict_share", **w}
+            for m in models for w in _primary_cells()]
+
+
 def speed_grid(models: Sequence[str] = (QWEN["1.5B"],)) -> list[dict]:
     """Paired first 30 MGSM items per language: 12 cells × draft off/on = the PRD's 24."""
     return [{"model": m, "task": "mgsm", "lang": "all", "limit": 30, "kv": kv, "spec": spec,

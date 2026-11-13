@@ -156,7 +156,8 @@ def test_cli_writes_loadable_grids(tmp_path):
     from whopays.cli import main
 
     assert main(['grid', '--out', str(tmp_path)]) == 0
-    assert {p.name for p in tmp_path.iterdir()} == {'replication.yaml', 'audit.yaml', 'speed.yaml'}
+    assert {p.name for p in tmp_path.iterdir()} == {'replication.yaml', 'audit.yaml', 'speed.yaml',
+                                                    'exploratory_evict_share.yaml'}
     audit = load_jobs(tmp_path / 'audit.yaml')
     assert {j.run_id for j in audit} == {j.run_id for j in load_jobs(audit_grid())}
 
@@ -179,3 +180,12 @@ def test_cli_plan_projects_audit_from_logged_baselines(tmp_path, capsys):
     printed = capsys.readouterr().out
     assert 'TOTAL' in printed and 'slices' in printed
     assert sorted(p.name for p in out.iterdir())[0] == 'audit_slice_00.yaml'
+
+
+def test_exploratory_evict_share_grid_is_1_5b_belebele_four_weight_levels():
+    from whopays.config import load_jobs
+    from whopays.grids import QWEN, exploratory_evict_share_grid
+
+    jobs = load_jobs(exploratory_evict_share_grid())
+    assert {j.model for j in jobs} == {QWEN["1.5B"]} and {j.task for j in jobs} == {"belebele"}
+    assert {j.kv for j in jobs} == {"evict_share"} and len(jobs) == 4 * 11

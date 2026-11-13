@@ -154,3 +154,35 @@ def test_prefill_reuse_survives_skipped_items(bundle, tiny_model_dir):
     part = list(bb.score_items(cfg, bundle, shared_passage_items(), {"p0-q0", "p1-q1"}))
     for row in part:
         assert row["letter_logprobs"] == full[row["item_id"]]["letter_logprobs"]
+
+
+def test_share_budget_scales_with_the_language_token_ratio():
+    assert bb.share_budget(256, n_lang=600, n_en=300) == 512
+    assert bb.share_budget(256, n_lang=300, n_en=300) == 256
+    assert bb.share_budget(256, n_lang=10, n_en=3000) == bb.MIN_SHARE_BUDGET
+
+
+def test_evict_share_keeps_the_english_share_of_each_item(bundle, tiny_model_dir):
+    budgets = {"x-q0": 7}
+    [row] = bb.score_items(cfg_for(tiny_model_dir, kv="evict_share", kv_budget=256), bundle,
+                           items(1), set(), budgets=budgets)
+    assert row["kv_item_budget"] == 7
+    assert row["kept_context_tokens"] == min(7, row["context_tokens"])
+    [same] = bb.score_items(cfg_for(tiny_model_dir, kv="evict", kv_budget=7), bundle, items(1),
+                            set())
+    np.testing.assert_allclose(row["letter_logprobs"], same["letter_logprobs"])
+
+
+def test_evict_share_needs_budgets(bundle, tiny_model_dir):
+    with pytest.raises(ValueError, match="per-item budgets"):
+        list(bb.score_items(cfg_for(tiny_model_dir, kv="evict_share"), bundle, items(1), set()))
+
+
+def test_evict_share_budgets_come_from_the_english_items(bundle, tiny_model_dir, monkeypatch):
+    long = {**ITEM, "passage": ITEM["passage"] * 3}
+    monkeypatch.setattr(datasets, "belebele",
+                        lambda lang: [ITEM] if lang == "en" else [long])
+    budgets = bb.english_share_budgets(bundle.tokenizer, 20, [long])
+    en_ctx = len(bb.split_tokens(bundle.tokenizer, *bb.build_prompt(ITEM))[0])
+    te_ctx = len(bb.split_tokens(bundle.tokenizer, *bb.build_prompt(long))[0])
+    assert budgets == {"x-q1": bb.share_budget(20, n_lang=te_ctx, n_en=en_ctx)}

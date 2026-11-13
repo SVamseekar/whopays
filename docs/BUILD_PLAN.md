@@ -120,6 +120,8 @@ experiment is authorized by a passing unit test alone.
   - [x] Audit cut and slices (2026-11-06): calibration and seed replication on 1.5B only (third preregistration amendment); 858 runs, about 61 projected GPU-hours; `configs/audit_slice_00`–`06`. GPTQ load time is unmeasured (DECISIONS 2026-11-06).
 - [x] Notebooks `04_audit_grid` and `05_speed_grid` built. CPU only; each needs a K1 pass to run.
 
+- [ ] Exploratory `evict_share` cell (seventh amendment): `configs/exploratory_evict_share.yaml`, 44 runs, 1.5B Belebele. Built and CPU-tested 2026-11-14; run with the first audit slice.
+
 ## M3 — Decomposition (weeks 9–10, M1 only)
 - [ ] `stats/bootstrap.py`, `stats/mixed.py`, `stats/shapley.py`, `stats/oaxaca.py`, `stats/inequality.py`, each tested on synthetic planted effects (FR-10, FR-11).
   - [x] CPU estimator tests and Oaxaca group-identification guard. Complete H2 interaction

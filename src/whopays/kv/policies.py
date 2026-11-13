@@ -38,9 +38,12 @@ def new_cache(cfg: RunConfig, model) -> Cache:
     return DynamicCache(config=model.config)
 
 
-def after_prefill(cache: Cache, cfg: RunConfig) -> int:
-    """Apply the context policy and return the number of cached positions retained."""
-    return _apply_policy(cache, cfg)
+def after_prefill(cache: Cache, cfg: RunConfig, budget: int | None = None) -> int:
+    """Apply the context policy and return the number of cached positions retained.
+
+    `evict_share` needs `budget`, the item's own token budget; `evict` uses `cfg.kv_budget`.
+    """
+    return _apply_policy(cache, cfg, budget)
 
 
 def after_decode(cache: Cache, cfg: RunConfig) -> int:
@@ -52,14 +55,17 @@ def after_decode(cache: Cache, cfg: RunConfig) -> int:
     return _apply_policy(cache, cfg)
 
 
-def _apply_policy(cache: Cache, cfg: RunConfig) -> int:
-    if cfg.kv == "evict":
+def _apply_policy(cache: Cache, cfg: RunConfig, budget: int | None = None) -> int:
+    if cfg.kv == "evict_share" and budget is None:
+        raise ValueError("kv='evict_share' needs the item's budget")
+    if cfg.kv in ("evict", "evict_share"):
+        budget = cfg.kv_budget if cfg.kv == "evict" else budget
         for layer in cache.layers:
             length = layer.get_seq_length()
-            if length <= cfg.kv_budget:
+            if length <= budget:
                 continue
-            sink = min(4, cfg.kv_budget)
-            recent = cfg.kv_budget - sink
+            sink = min(4, budget)
+            recent = budget - sink
             indices = torch.cat([
                 torch.arange(sink, device=layer.keys.device),
                 torch.arange(length - recent, length, device=layer.keys.device),

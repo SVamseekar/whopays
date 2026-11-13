@@ -31,7 +31,7 @@ Calib = Literal["none", "en", "multi"]
 # form, so runs made before this field existed keep their IDs.
 CalibSource = Literal["wikipedia_128x2048", "flores_dev_sentences"]
 LEGACY_CALIB_SOURCE = "flores_dev_sentences"
-KVPolicy = Literal["full", "quant4", "evict"]
+KVPolicy = Literal["full", "quant4", "evict", "evict_share"]
 Task = Literal["belebele", "mgsm", "flores_nll"]
 
 # Version of the w4_gptqmodel recipe (replicate.GPTQMODEL_CONFIG plus load dtype). Recipe 1
@@ -95,6 +95,8 @@ class RunConfig(BaseModel):
             raise ValueError("bitmap is required for weight='bitmap' and only allowed there")
         if self.bitmap and not set(self.bitmap.values()) <= ALLOWED_BITS:
             raise ValueError(f"bitmap bits must be in {sorted(ALLOWED_BITS)}")
+        if self.kv == "evict_share" and self.task != "belebele":
+            raise ValueError("kv='evict_share' is defined for belebele only")
         if self.offset and self.task != "flores_nll":
             raise ValueError("offset applies to flores_nll only")
         if self.spec and self.draft_model is None:
@@ -115,7 +117,7 @@ class RunConfig(BaseModel):
             d["gptqmodel_recipe"] = GPTQMODEL_RECIPE
         if self.weight != "bitmap":
             del d["bitmap"], d["budget"]
-        if self.kv != "evict":
+        if self.kv not in ("evict", "evict_share"):
             del d["kv_budget"]
         if self.kv == "quant4":
             d["kv_recipe"] = KV_QUANT_RECIPE
