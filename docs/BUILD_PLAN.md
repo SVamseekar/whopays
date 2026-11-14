@@ -122,6 +122,7 @@ experiment is authorized by a passing unit test alone.
   - [x] Audit cut and slices (2026-11-06): calibration and seed replication on 1.5B only (third preregistration amendment); 858 runs, about 61 projected GPU-hours; `configs/audit_slice_00`–`06`. GPTQ load time is unmeasured (DECISIONS 2026-11-06).
 - [x] Notebooks `04_audit_grid` and `05_speed_grid` built. CPU only; each needs a K1 pass to run.
 
+- [ ] Exploratory MGSM re-score (CPU only, after the audit): the primary score is lm-eval's last-number extraction, matched at K1. With FP16 weights and full cache, 22% (en) to 100% (fr, sw) of outputs hit the 256-token cap (preliminary, slice 0), often continuing past the answer ("You are an AI assistant ..."), so the last number may come from the continuation. Re-score from saved `output_text`, cut at the first answer statement or the first new prompt in any language, and report it beside the primary score, labelled exploratory. Run through `adversarial-review` before use.
 - [ ] Exploratory `evict_share` cell (seventh amendment): `configs/exploratory_evict_share.yaml`, 44 runs, 1.5B Belebele. Built and CPU-tested 2026-11-14; run with the first audit slice.
 
 ## M3 — Decomposition (weeks 9–10, M1 only)
