@@ -11,13 +11,17 @@
 import pandas as pd
 
 import whopays
+from whopays.config import load_jobs
 from whopays.env import results_root, source_root
 from whopays.gates import require_k1
 from whopays.parallel import run_parallel
 
 SLICE = 0
 require_k1(results_root())
-JOBS = source_root() / "configs" / f"audit_slice_{SLICE:02d}.yaml"
+CONFIGS = source_root() / "configs"
+JOBS = load_jobs(CONFIGS / f"audit_slice_{SLICE:02d}.yaml")
+if SLICE == 0:  # exploratory retention-matched eviction cell (seventh amendment)
+    JOBS += load_jobs(CONFIGS / "exploratory_evict_share.yaml")
 run_parallel(JOBS, check=False)  # one worker per T4
 results = whopays.run(JOBS)  # skips finished runs, retries failures, gives the status table
 status = pd.DataFrame([r.__dict__ for r in results])
