@@ -200,7 +200,15 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 
 ### 20. 2026-11-14, Kaggle T4×2: notebook 04 audit slice 1 at `a3af608`
 - Kernel `souramarti/whopays-runner` version 8. Job list: `configs/audit_slice_01.yaml` (265 runs: 232 Belebele, 33 MGSM, 1.5B).
-- Projected from slice 0's logged rates: about 10.1 GPU-hours, about 5 h wall. Outcome: pending.
+- Projected from slice 0's logged rates: about 10.1 GPU-hours, about 5 h wall.
+- Queued on Kaggle for about 2.7 h (launched about 13:30 UTC, running from 16:13 UTC); the cause is not visible from the CLI (GPU availability or weekly quota).
+- Outcome: complete. 265 of 265 runs done (232 Belebele, 33 MGSM; 77 were already done), 0 failed, 0 HF rate-limit waits, notebook reached its end, 5.12 h wall. All 265 have `DONE` on HF. GPTQ: 744–789 s from model load to the end of the first run, eight 1.5B models (about 650 s of quantization each).
+- Belebele, KV policy against the same quantized model's full cache (points, per seed): every delta is within ±2.6 in all 11 languages. Eviction is negative in th (−0.1 to −2.2) and mostly in bn (to −2.6), the two languages it actually truncates besides te (RUN_LOG 19). `quant4` shows no consistent sign.
+- W4 GPTQ full-cache seed range over three seeds: 0.9–4.9 points per language (English calibration), 0.8–4.0 (multilingual). This is larger than every KV-policy delta, so KV contrasts must stay paired within one quantized model.
+- W4 calibration language (three seeds each, full cache): multilingual calibration lowers en (70.3–74.0 against 73.8–76.6) and raises ru (64.6–66.0 against 62.8–63.9). Exploratory; not tested.
+- W3 GPTQ, English calibration: 20.3–42.1%, at or near the 25% chance level except English and Chinese at some seeds; English seed range 15.2 points. Floor-limited.
+- MGSM, W4 multilingual calibration, seed 0, full cache: en 46.4% against 61.2% at FP16 (−14.8), es −15.2, zh −19.6, against −5 to −8 points on Belebele for the same weights. Generation degrades more than multiple choice under W4.
+- No hypothesis tested (3B and the remaining 1.5B cells are not done). Interim per-cell table: `docs/figures/audit_interim_slices00-01_accuracy.csv`.
 - Dataset snapshot not refreshed: `run_inventory.py` downloads every run's files and hit HF read 429s; the DONE count comes from one `list_repo_files` call instead.
 
 ## Results dataset snapshot (2026-11-13)
