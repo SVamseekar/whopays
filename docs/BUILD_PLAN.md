@@ -138,6 +138,7 @@ experiment is authorized by a passing unit test alone.
   - [x] 2026-11-14, sixth amendment: sensitivities in nats per parallel sentence; H4 primary on held-out FLORES devtest (items after the probe's 500); accuracy cost on Belebele. 1.5B maps solved: `configs/parityquant_1.5B.yaml`, 18 models, 396 runs.
 - [ ] Notebook `06_parityquant_eval`. **GPU check, K3 gate.**
   - [x] CPU: notebook built. Needs K1 and K2 passes, then bit maps solved locally.
+  - [x] 2026-11-14, Kaggle T4×2 at `2a7caef` (RUN_LOG 16): 1.5B evaluated, 396 runs. **K3 NEGATIVE_RESULT**: minimax beats the average objective only at 3.0 bits (+1.50 nats per sentence, CI [0.06, 2.98]) and loses at 3.5 and 4.0. Per the PRD, ParityQuant is reported as a negative result. Open: the Belebele collapse of the 3.5-bit minimax model (chance in all 11 languages) is investigated before any claim. 3B evaluation is on hold pending that decision.
 - [ ] Optional: `parityquant/refine.py` (FR-14). Not built; only useful after a positive K3 (DECISIONS 2026-11-03).
 
 ## M5 — Scale + release (weeks 15–16)

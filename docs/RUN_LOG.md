@@ -164,7 +164,13 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 ### 16. 2026-11-14, Kaggle T4×2: notebook 06 ParityQuant evaluation, 1.5B, `2a7caef`
 - Kernel `souramarti/whopays-runner` version 6, launched from the M1 with `kaggle_run.py push --ref 2a7caef`.
 - Job list `configs/parityquant_1.5B.yaml` (sixth amendment): 18 quantized models, 396 runs (198 Belebele, 198 held-out FLORES devtest items after the first 500).
-- Projected about 11 T4-hours, about 6 h wall (EFFICIENCY_LOG 2026-11-14). Outcome: pending.
+- Projected about 11 T4-hours, about 6 h wall (EFFICIENCY_LOG 2026-11-14).
+- Outcome: complete, reached the end of the notebook. 396 of 396 runs done and on HF, plus the 22 FP16 references. Wall time 38,796 s (10.8 h); summed job time 19.69 h.
+- About 10.7 of those GPU-hours were idle. Eleven HTTP 429 responses on the per-run HF commit (`run.py`, `pusher(force=True)` in the worker thread) each made a worker sleep about an hour (5 on GPU 0, 6 on GPU 1). Fix planned: bulk background commits for Kaggle grids.
+- Result (confirmatory, H4 under the sixth amendment): **K3 NEGATIVE_RESULT**. Worst-language (Telugu) held-out FLORES NLL increase per sentence, minimax against the best baseline (the average objective): +1.50 nats [0.06, 2.98] at 3.0 bits, −1.89 [−2.69, −1.20] at 3.5, −2.23 [−2.70, −1.80] at 4.0. Both sensitivity-aware maps cut Telugu's increase against uniform-multi (85.4 / 56.0 / 38.4).
+- Belebele accuracy (secondary): at 3.5 bits the minimax model is at chance in all 11 languages (20.9–26.0%). At 4.0 bits both allocators trail uniform by 3–11 points in the high-resource languages. The 3.5-bit minimax map has four middle blocks at 2 bits (9, 12, 13, 14); the average map has one. Under investigation (DECISIONS 2026-11-14).
+- Tables: `docs/figures/parityquant_1.5B_{h4,languages,bits_to_parity}.csv` from `scripts/parity_eval.py 1.5B`.
+- Log: `runs/kaggle/06_parityquant_eval/20261114T053729Z/whopays-runner.log` (local, gitignored).
 
 ## Results dataset snapshot (2026-11-13)
 
