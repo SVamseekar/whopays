@@ -16,7 +16,7 @@ from whopays.env import results_root, source_root
 from whopays.gates import require_k1
 from whopays.parallel import run_parallel
 
-SLICE = 0
+SLICE = 1
 require_k1(results_root())
 CONFIGS = source_root() / "configs"
 JOBS = load_jobs(CONFIGS / f"audit_slice_{SLICE:02d}.yaml")
