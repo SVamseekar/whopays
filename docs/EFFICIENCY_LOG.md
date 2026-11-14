@@ -26,6 +26,11 @@ cheaper, what was rejected and why, and what is queued. Numbers come from logged
 
 ## Passes
 
+### 2026-11-14: after audit slice 1, before slice 2
+- Measured (RUN_LOG 20): 5.12 h wall against about 5 projected; 1.5B GPTQ about 650 s per model, confirmed on eight models. Kaggle queue wait of about 2.7 h before the run started: the largest new delay, and outside our control.
+- Candidates unchanged from the slice 0 pass; none passes both gates at under half a day. Queue waits: launching the next slice right after ingest keeps one run queued at all times; Modal stays reserved for the notebook 05 gate.
+- Next: slice 2 measures the 3B rate and 3B GPTQ time; re-check slices 03–05 against the 10-hour cap.
+
 ### 2026-11-14: after audit slice 0, before slice 1
 - Measured (RUN_LOG 19): slice 0 took 5.04 h wall, about 10.1 GPU-hours, against 9.9 projected from its own logged rates. Rates: Belebele 0.088 s per item, MGSM 1.54 s per problem (1.5B, batch 8); GPTQ about 640 s per 1.5B model.
 - Remaining: audit slices 01–06, 680 runs, about 53 GPU-hours projected (3B at the planning assumption of 2× the 1.5B rate, first measured in slice 2); speed grid 308 runs; notebook 05 gate. Kaggle's weekly quota (about 30 h) is the binding limit, about two weeks of audit. Modal 8.40 USD.
