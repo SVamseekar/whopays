@@ -187,7 +187,16 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 ### 19. 2026-11-14, Kaggle T4×2: notebook 04 audit slice 0 at `3f6f753`
 - Kernel `souramarti/whopays-runner` version 7. Job list: `configs/audit_slice_00.yaml` (178 runs, 1.5B; 11 already done) plus `configs/exploratory_evict_share.yaml` (44 runs, seventh amendment): 222 runs.
 - First run with bulk HF commits, batched MGSM eviction and the KIVI-4 cache (recipe 3).
-- Projected from logged rates: about 11 T4-hours, about 6 h wall. Outcome: pending.
+- Projected from logged rates: about 11 T4-hours, about 6 h wall.
+- Outcome: complete. 222 of 222 runs done (156 Belebele, 66 MGSM), 0 failed, 0 HF rate-limit waits, notebook reached its end; 5.04 h wall on two T4s (about 10.1 GPU-hours). torch 2.15.0+cu132, transformers 5.19.0, Tesla T4. All 222 run IDs have `DONE` on the HF dataset.
+- Measured rates (1.5B, batch 8): Belebele 0.088 s per item; MGSM 1.54 s per problem. Median minutes per language run: MGSM full 6.3, quant4 7.3, evict 5.6; Belebele about 1.1–1.5. GPTQ quantization of one 1.5B model: about 640 s (four groups, 707–717 s from load to the end of the first run).
+- Belebele, FP16 weights, delta against the full cache (points, 900 items per language): `quant4` within 1.1 points in all 11 languages, none significant after BH; `evict` 0.0 to −2.0 (bn −2.0, th −1.2, te −0.2), none significant.
+- Fixed 256-token eviction only removes context where the prompt is longer than 256 tokens: median prompt 99 tokens (en) to 688 (te). Mean retained share: te 0.41, bn 0.55, th 0.90, sw 0.98, ru 0.99, others 1.00. In eight languages the `evict` cell is close to the full cache by construction.
+- `evict_share` (exploratory) evicted nothing: its per-item budget (256 × item tokens / English item tokens) exceeds every item's own length because English prompts are under 256 tokens. Its outputs equal the full cache's in every language at FP16 and W8. The cell is uninformative at this budget (DECISIONS 2026-11-14).
+- W3 GPTQ (multilingual calibration, `evict_share`): 23.8–33.6% in all 11 languages, at the 25% chance level.
+- W4 GPTQ (English calibration): seed 0 versus seed 1 full-cache accuracy differs by up to 4.9 points (ja 56.4 vs 61.3), as large as many KV-policy deltas.
+- MGSM at FP16: bn 5.2%, sw 2.8%, te 0.8% with the full cache, near the floor, so MGSM deltas in those languages carry little information.
+- No hypothesis is tested on this slice; H1–H3 are run once the preregistered cells are complete. Interim table: `docs/figures/audit_interim_slice00_langconfig.csv`.
 
 ## Results dataset snapshot (2026-11-13)
 

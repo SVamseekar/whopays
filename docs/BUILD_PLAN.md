@@ -120,10 +120,11 @@ experiment is authorized by a passing unit test alone.
 - [ ] `configs/` generator for the 12-cell × 2-model grid, plus job-list slices sized at ≤ 10 h each.
   - [x] CPU: `whopays.cli grid` writes the job lists; `whopays.cli plan` projects GPU-hours and writes slices from logged baselines.
   - [x] Audit cut and slices (2026-11-06): calibration and seed replication on 1.5B only (third preregistration amendment); 858 runs, about 61 projected GPU-hours; `configs/audit_slice_00`–`06`. GPTQ load time is unmeasured (DECISIONS 2026-11-06).
+  - [x] Slice 0 done 2026-11-14 (RUN_LOG 19): 222 of 222 runs, 5.04 h wall on T4×2. GPTQ about 640 s per 1.5B model. **Next:** slices 01–06 (680 runs, about 53 GPU-hours projected), one Kaggle session each; check the 3B rate after slice 2.
 - [x] Notebooks `04_audit_grid` and `05_speed_grid` built. CPU only; each needs a K1 pass to run.
 
 - [ ] Exploratory MGSM re-score (CPU only, after the audit): the primary score is lm-eval's last-number extraction, matched at K1. With FP16 weights and full cache, 22% (en) to 100% (fr, sw) of outputs hit the 256-token cap (preliminary, slice 0), often continuing past the answer ("You are an AI assistant ..."), so the last number may come from the continuation. Re-score from saved `output_text`, cut at the first answer statement or the first new prompt in any language, and report it beside the primary score, labelled exploratory. Run through `adversarial-review` before use.
-- [ ] Exploratory `evict_share` cell (seventh amendment): `configs/exploratory_evict_share.yaml`, 44 runs, 1.5B Belebele. Built and CPU-tested 2026-11-14; run with the first audit slice.
+- [x] Exploratory `evict_share` cell (seventh amendment): `configs/exploratory_evict_share.yaml`, 44 runs, 1.5B Belebele. Ran with audit slice 0 (RUN_LOG 19). It evicted nothing: English Belebele prompts are under 256 tokens, so every scaled budget exceeds its item's length. Uninformative; no claim uses it (DECISIONS 2026-11-14). A sub-English budget (for example 64 tokens) is backlogged and needs the owner's approval.
 
 ## M3 — Decomposition (weeks 9–10, M1 only)
 - [ ] `stats/bootstrap.py`, `stats/mixed.py`, `stats/shapley.py`, `stats/oaxaca.py`, `stats/inequality.py`, each tested on synthetic planted effects (FR-10, FR-11).
