@@ -62,9 +62,9 @@ def _sync(device: str) -> None:
 # policy depend only on the context tokens, so reusing a copy gives exactly the cache a fresh
 # prefill would (tests check bit identity); it saves 31-33% of Belebele tokens (900 questions
 # over 488 passages per language, measured with the Qwen2.5 tokenizer, DECISIONS 2026-11-12).
-# This is automatic prefix caching (vLLM docs, design/prefix_caching). The quantized cache is
-# excluded: its HQQ state is not plain tensors, so it is always prefilled afresh.
-REUSABLE_KV = {"full", "evict", "evict_share"}
+# This is automatic prefix caching (vLLM docs, design/prefix_caching). The 4-bit KIVI cache is
+# plain fake-quantized tensors with deterministic grouping, so it is reused too.
+REUSABLE_KV = {"full", "evict", "evict_share", "quant4"}
 
 # Exploratory retention-matched eviction (seventh amendment): each item keeps the share of its
 # own context that `kv_budget` tokens is of the parallel English context, the "+RATIO" rule of

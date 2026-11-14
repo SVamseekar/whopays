@@ -135,8 +135,11 @@ def shared_passage_items():
     return out
 
 
-@pytest.mark.parametrize("kv", ["full", "evict"])
-def test_prefill_reuse_is_bit_identical_to_fresh_prefill(bundle, tiny_model_dir, kv):
+@pytest.mark.parametrize("kv", ["full", "evict", "quant4"])
+def test_prefill_reuse_is_bit_identical_to_fresh_prefill(bundle, tiny_model_dir, kv,
+                                                         monkeypatch):
+    from whopays.kv import policies
+    monkeypatch.setattr(policies.KIVILayer.__init__, "__defaults__", (4, 4, 4))  # quantize
     cfg = cfg_for(tiny_model_dir, kv=kv, kv_budget=8)
     letters = bb.letter_token_ids(bundle.tokenizer)
     rows = list(bb.score_items(cfg, bundle, shared_passage_items(), set()))

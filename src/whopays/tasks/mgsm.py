@@ -32,9 +32,10 @@ from whopays.config import RunConfig
 from whopays.tasks import register
 
 MAX_NEW_TOKENS = 256
-# KV policies generated in batches like the full cache. The 4-bit cache qualifies because its
-# HQQ groups stay within one sequence (kv.policies.QUANT_AXIS), so batching changes only FP16
-# batch numerics, as for the full cache; tests check rows equal batch-1 rows in fp32.
+# KV policies generated in batches like the full cache. The 4-bit cache qualifies because each
+# row's KIVI groups start at its own first real token (kv.policies.set_padding), so batching
+# changes only FP16 batch numerics, as for the full cache; tests check rows equal batch-1 rows
+# in fp32.
 # Eviction batches through `_generate_evicting`, which keeps each row's own sink and recent
 # tokens. Speculative decoding always runs one sequence at a time (speed grid).
 BATCHED_KV = {"full", "quant4", "evict"}
@@ -134,9 +135,10 @@ def generate_batch(bundle, cfg: RunConfig, prompts: Sequence[str]) -> list[dict]
         return _generate_evicting(bundle, cfg, enc)
     extra = {}
     if cfg.kv == "quant4":
-        from whopays.kv.policies import new_cache
+        from whopays.kv.policies import new_cache, set_padding
 
         extra["past_key_values"] = new_cache(cfg, model)
+        set_padding(extra["past_key_values"], enc["attention_mask"])
     out = model.generate(
         **enc, **extra, max_new_tokens=MAX_NEW_TOKENS, do_sample=False, num_beams=1,
         stop_strings=[PROMPTS[cfg.lang][0]], tokenizer=tok,

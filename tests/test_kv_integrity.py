@@ -130,15 +130,15 @@ def test_cache_bytes_counts_compressed_metadata_and_shared_storage_once():
     assert policies.cache_bytes(cache) == 36
 
 
-def test_quant4_requires_optional_hqq_only_when_selected(monkeypatch):
+def test_quant4_needs_no_optional_backend(monkeypatch):
     import transformers.cache_utils
 
     monkeypatch.setattr(transformers.cache_utils, "is_hqq_available", lambda: False)
-    model = SimpleNamespace(config=Qwen2Config(num_hidden_layers=1))
+    model = SimpleNamespace(config=Qwen2Config(num_hidden_layers=2))
     assert isinstance(policies.new_cache(config(), model), DynamicCache)
     assert isinstance(policies.new_cache(config(kv="evict"), model), DynamicCache)
-    with pytest.raises(ImportError, match="HQQ|hqq"):
-        policies.new_cache(config(kv="quant4"), model)
+    cache = policies.new_cache(config(kv="quant4"), model)
+    assert [type(layer) for layer in cache.layers] == [policies.KIVILayer] * 2
 
 
 def test_eviction_matches_masked_full_cache_at_original_rope_position(tiny_model_dir):

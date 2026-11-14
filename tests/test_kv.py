@@ -34,13 +34,15 @@ def test_full_rollback(tiny_model_dir):
         rollback(cache, 2)
 
 
-def test_quantized_cache_uses_per_token_hqq_groups(tiny_model_dir):
-    pytest.importorskip("hqq")
+def test_quantized_cache_uses_kivi_layers(tiny_model_dir):
     from whopays.config import RunConfig
     from whopays.kv.policies import new_cache
     from whopays.models.loader import load
     b = load(RunConfig(model=str(tiny_model_dir), task="mgsm", lang="en"), device="cpu")
     cache = new_cache(RunConfig(model=str(tiny_model_dir), task="mgsm", lang="en", kv="quant4"),
                       b.model)
+    from whopays.kv.policies import KIVILayer
+    assert len(cache.layers) == b.model.config.num_hidden_layers
     layer = cache.layers[0]
-    assert (layer.axis_key, layer.axis_value, layer.nbits) == (1, 1, 4)
+    assert isinstance(layer, KIVILayer)
+    assert (layer.nbits, layer.group, layer.residual) == (4, 32, 128)  # KIVI section 4.1

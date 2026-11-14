@@ -108,6 +108,7 @@ experiment is authorized by a passing unit test alone.
   - [x] CPU (2026-11-13): 4-bit cache uses per-token HQQ groups (axis 1) and MGSM batches it;
     batch-4 equals batch-1 in fp32; `KV_QUANT_RECIPE` in quant4 run IDs (DECISIONS 2026-11-13).
     **Next GPU check:** quant4 batch 8 vs batch 1 on 16 MGSM problems (en, te), about 0.3 h.
+  - [x] CPU (2026-11-14): 4-bit cache is now KIVI-4 (eighth amendment) after recipe 2 collapsed MGSM (RUN_LOG 17). **Next GPU check:** batch gate quant4 rows on a T4.
   - [x] CPU (2026-11-14): eviction cells also batch (`tasks/mgsm._generate_evicting`); fp32 rows equal the sequential loop. The GPU check is now `modal_run.py batchgate`: full, quant4 and evict, batch 8 vs 1, 16 problems (en, te), PASS if at most 2 of 16 correctness flips per policy and language.
   - [x] Implement interface, eviction, residual-only rollback and cache storage accounting;
     CPU tests including absolute RoPE positions. Actual HQQ/T4 acceptance remains open.

@@ -40,9 +40,11 @@ Task = Literal["belebele", "mgsm", "flores_nll"]
 GPTQMODEL_RECIPE = 2
 # 4-bit KV cache recipe. 1: HQQ axis 0 (hqq's default; groups strided across heads, tokens and
 # batch rows). 2: HQQ axis 1, per-token groups of 64 inside one head vector, as transformers
-# recommends for HQQ and KIVI's 4-bit per-token setting (DECISIONS 2026-11-13). No recipe-1
-# result was ever logged.
-KV_QUANT_RECIPE = 2
+# recommends for HQQ (DECISIONS 2026-11-13; that entry wrongly called it KIVI's setting).
+# 3: KIVI as published, keys per channel and values per token in groups of 32, FP16 residual of
+# 128 tokens, quantize once (kv.policies; DECISIONS 2026-11-14). Recipe 2 collapsed MGSM on
+# Qwen2.5 (RUN_LOG 17). No recipe-1 or recipe-2 audit result was ever logged.
+KV_QUANT_RECIPE = 3
 CALIBRATED: set[str] = {"w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
 GROUPED: set[str] = {"w8_rtn", "w4_gptq", "w3_gptq", "bitmap", "w4_gptqmodel"}
 # Execution details: never part of the hash, so a smaller batch on a smaller GPU resumes the run.

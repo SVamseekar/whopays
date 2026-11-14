@@ -146,7 +146,7 @@ def test_quant4_cache_recipe_enters_only_quant4_run_ids():
 
     base = dict(model="Qwen/Qwen2.5-1.5B-Instruct", task="mgsm", lang="te")
     q = RunConfig(**base, kv="quant4").canonical()
-    assert q["kv_recipe"] == config.KV_QUANT_RECIPE == 2  # recipe 2: HQQ axis 1 (per token)
+    assert q["kv_recipe"] == config.KV_QUANT_RECIPE == 3  # recipe 3: KIVI
     for kv in ("full", "evict"):
         assert "kv_recipe" not in RunConfig(**base, kv=kv).canonical()
 

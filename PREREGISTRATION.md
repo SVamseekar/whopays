@@ -276,3 +276,29 @@ hypothesis, gate or multiple-comparison family changes. The preregistered `evict
 (`kept_context_tokens / context_tokens`) is reported for both eviction cells.
 
 **Unchanged.** H1–H4, grids, budgets, gates, K1–K4.
+
+## Eighth amendment — 2026-11-14, before any 4-bit-cache audit result
+
+**Disclosure.** No audit run of the `quant4` cell exists. A pipeline gate (RUN_LOG 17: 16 MGSM
+problems, en and te, Qwen2.5-1.5B, batch 8 against batch 1, not an audit result) showed the
+4-bit cache as then implemented (HQQ, per-token groups of 64 for keys and values) solving 0 of
+16 English problems the full cache solves 7 of; a CPU fp32 rerun gave degenerate text. Cause:
+Qwen2.5 keys carry outlier channels (layer 0: up to |k| about 320 against a median of 4), and
+per-token key groups spend the 4-bit range on them. The 2026-11-13 decision that chose that
+recipe also misdescribed it as KIVI's setting.
+
+**Change.** The `quant4` cell now uses KIVI as published (Liu et al., ICML 2024): keys
+quantized per channel and values per token, asymmetric round-to-nearest 4-bit, groups of 32,
+the 128 most recent tokens kept in FP16, each token quantized once (fake quantization; storage
+counted from bits). Run IDs carry `kv_recipe: 3`. The recipe was chosen from the literature,
+not tuned on any audit result, and was not re-checked for accuracy beyond confirming the
+collapse is gone.
+
+**Consequence for analysis.** With an FP16 residual, the share of each item's tokens held in
+4 bits depends on its length (fewer for short English MGSM prompts, more for long Telugu
+Belebele passages), as it does for anyone deploying KIVI. Each item's quantized share is
+deterministic from its logged token counts (floor((tokens − 128) / 32) × 32 over tokens, per
+row) and is reported per language beside the `quant4` gaps, as the retained share is for
+eviction.
+
+**Unchanged.** H1–H4, the cells, languages, models, budgets, gates and K1–K4.

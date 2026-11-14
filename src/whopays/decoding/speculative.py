@@ -73,7 +73,10 @@ class _State:
         """True when one forward of `size` tokens equals `size` sequential forwards."""
         if self.cfg.kv != "quant4":
             return True
-        return all((layer.keys.shape[-2] if layer.keys.ndim == 4 else 0) + size
+        from whopays.kv.policies import KIVILayer
+
+        return all(layer.flush_free(size) if isinstance(layer, KIVILayer)
+                   else (layer.keys.shape[-2] if layer.keys.ndim == 4 else 0) + size
                    < layer.residual_length for layer in self.cache.layers)
 
     def block_mask(self, size):
