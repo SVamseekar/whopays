@@ -198,4 +198,4 @@ The audit's 165 done runs are Belebele full-cache cells shared with the replicat
 - Replication gap direction: resolved by the fifth amendment. It is reproduced on FLORES NLL in 9 of 10 languages and on Belebele retention in 5 of 10 (no new GPU runs; DECISIONS 2026-11-13).
 - Modal driver hangs after `run_jobs.map` returns. Until that is fixed, call `push_results` directly.
 - K2: passed at 500 sentences per language (entry 15). The global noise flag is still on by 0.008, but the pairwise differences survive disattenuation.
-- HF uploads: fixed 2026-11-13. Modal grids make one commit at the end, and interval pushes run in a background thread (DECISIONS 2026-11-13).
+- HF uploads: fixed 2026-11-13 for Modal (one commit at the end). Kaggle grids still committed once per run and lost about 10.7 GPU-hours to HTTP 429 in entry 16; fixed 2026-11-14 with bulk commits from the parent every 15 minutes.

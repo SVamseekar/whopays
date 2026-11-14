@@ -126,8 +126,13 @@ def _pump(stream, prefix: str) -> None:
 
 def run_parallel(jobs, *, gpus: int | None = None, root: str | Path | None = None,
                  sync: bool = True, workdir: str | Path | None = None,
-                 check: bool = True) -> list[int]:
+                 check: bool = True, push_interval: float = 900.0) -> list[int]:
     """Run `jobs` across GPUs; returns worker exit codes.
+
+    With `sync`, workers pull but never push; this process commits finished runs in bulk every
+    `push_interval` seconds from a background thread, and once more at the end. One commit per
+    run from two workers hit HTTP 429 about every 1.7 h on the 1.5B ParityQuant grid, and each
+    429 slept a worker for an hour (RUN_LOG 16).
 
     A worker exits non-zero when any of its jobs failed. With `check` that raises; without it,
     callers follow with an in-process `whopays.run(jobs)`, which skips finished runs, retries
@@ -140,6 +145,13 @@ def run_parallel(jobs, *, gpus: int | None = None, root: str | Path | None = Non
     shards = shard_jobs(configs, worker_count(configs, gpus))
     workdir = Path(workdir or tempfile.mkdtemp(prefix="whopays-shards-"))
     workdir.mkdir(parents=True, exist_ok=True)
+    pusher = None
+    if sync:
+        from whopays.env import results_root
+        from whopays.io.hub_sync import BulkPush
+
+        pusher = BulkPush(Path(root) if root is not None else results_root(),
+                          [c.run_id for c in configs], push_interval).start()
     procs, pumps = [], []
     for i, shard in enumerate(shards):
         path = workdir / f"shard_{i}.yaml"
@@ -148,8 +160,7 @@ def run_parallel(jobs, *, gpus: int | None = None, root: str | Path | None = Non
         cmd = [sys.executable, "-m", "whopays.cli", "run", str(path)]
         if root is not None:
             cmd += ["--root", str(root)]
-        if not sync:
-            cmd.append("--no-sync")
+        cmd.append("--no-push" if sync else "--no-sync")
         env = {**os.environ, "CUDA_VISIBLE_DEVICES": str(i), "PYTHONUNBUFFERED": "1"}
         print(f"worker {i}: GPU {i}, {len(shard)} jobs, "
               f"{len({c.model_key() for c in shard})} model groups")
@@ -162,6 +173,8 @@ def run_parallel(jobs, *, gpus: int | None = None, root: str | Path | None = Non
     codes = [p.wait() for p in procs]
     for pump in pumps:
         pump.join(timeout=5)
+    if pusher is not None:
+        pusher.close()
     failed = [i for i, code in enumerate(codes) if code != 0]
     if failed and check:
         raise RuntimeError(f"worker {', '.join(map(str, failed))} exited non-zero; "

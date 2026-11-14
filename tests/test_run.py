@@ -178,10 +178,12 @@ def test_parquet_contains_config_and_done_retries_push(tmp_path, fake_task, load
     df = pd.read_parquet(tmp_path / r.run_id / 'items.parquet')
     assert {'model', 'weight', 'kv', 'spec', 'calib', 'seed', 'bitmap',
             'config_json', 'batch_size'} <= set(df.columns)
-    with mock.patch.object(hub_sync, 'push_run', return_value=True) as push:
+    with mock.patch.object(hub_sync, 'push_run', return_value=True) as single, \
+         mock.patch.object(hub_sync, 'push_runs', return_value=[r.run_id]) as bulk:
         [again] = run([job], root=tmp_path, loader=loader)
     assert again.status == 'skipped'
-    push.assert_called_once()
+    single.assert_not_called()
+    bulk.assert_called_once_with(tmp_path, [r.run_id])
 
 
 def test_incomplete_done_and_failed_restore_fail_closed(tmp_path, fake_task, loader):

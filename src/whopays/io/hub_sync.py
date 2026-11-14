@@ -119,6 +119,59 @@ def pull_runs(
     return True
 
 
+class BulkPush:
+    """Upload finished runs of a grid in one commit every `interval` seconds, off the GPU path.
+
+    Workers run with uploads off; this thread commits every run that is `is_done` and not yet
+    uploaded. A rate-limited commit (huggingface_hub sleeps up to an hour on HTTP 429) delays
+    only this thread. `close()` stops the loop and makes one final commit of what is left.
+    Failures are logged, not raised: the local copy is authoritative and the next commit retries.
+    """
+
+    def __init__(self, root: Path, run_ids: Iterable[str], interval: float = 900.0,
+                 push=None):
+        self.root = Path(root)
+        self.run_ids = list(dict.fromkeys(run_ids))
+        self.interval = interval
+        self.pushed: set[str] = set()
+        self._push = push or push_runs
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def pending(self) -> list[str]:
+        from whopays.io.results import is_done
+
+        return [r for r in self.run_ids if r not in self.pushed and is_done(self.root / r)]
+
+    def flush(self) -> list[str]:
+        ids = self.pending()
+        if not ids:
+            return []
+        try:
+            done = self._push(self.root, ids)
+        except Exception as exc:  # network, auth, rate limit: never stop the grid
+            log.warning("bulk push of %d runs failed: %s", len(ids), exc)
+            return []
+        self.pushed.update(done)
+        return done
+
+    def _loop(self) -> None:
+        while not self._stop.wait(self.interval):
+            self.flush()
+
+    def start(self) -> BulkPush:
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="bulk-push")
+        self._thread.start()
+        return self
+
+    def close(self) -> list[str]:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
+        return self.flush()
+
+
 class ThrottledPush:
     """Push a run folder at most once per `min_interval` seconds (HF limits commit rates).
 

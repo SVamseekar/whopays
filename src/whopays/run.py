@@ -98,7 +98,8 @@ def _check_meta(run_dir: Path, allow_env_change: bool) -> None:
 
 
 def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flush_every: int,
-             sync_interval: float, allow_env_change: bool, push: bool = True) -> JobResult:
+             sync_interval: float, allow_env_change: bool, push: bool = True,
+             retry_push: list[str] | None = None) -> JobResult:
     run_id = cfg.run_id
     run_dir = root / run_id
     pending_restore = root / f".restore-{run_id}"
@@ -114,8 +115,8 @@ def _run_one(cfg: RunConfig, root: Path, models: _ModelCache, *, sync: bool, flu
             raise RuntimeError("remote progress is unknown after incomplete restore")
         pending_restore.unlink()
     if is_done(run_dir):
-        if sync and push and not restored:  # a run just pulled from the hub is already there
-            hub_sync.ThrottledPush(run_dir, sync_interval)(force=True)
+        if sync and push and not restored and retry_push is not None:
+            retry_push.append(run_id)  # re-sent in one commit by run(); hub copy may be missing
         n = json.loads((run_dir / "DONE").read_text())["n_items"]
         return JobResult(run_id, cfg.task, cfg.lang, "skipped", n_items=n)
 
@@ -185,13 +186,14 @@ def run(
     root = Path(root) if root is not None else results_root()
     models = _ModelCache(loader)
     results: list[JobResult] = []
+    retry_push: list[str] = []
     try:
         for cfg in configs:
             start = time.monotonic()
             try:
                 res = _run_one(cfg, root, models, sync=sync, flush_every=flush_every,
                                sync_interval=sync_interval, allow_env_change=allow_env_change,
-                               push=push)
+                               push=push, retry_push=retry_push)
             except Exception as exc:
                 if stop_on_error:
                     raise
@@ -204,4 +206,9 @@ def run(
                   f"items={res.n_items} {res.seconds}s" + (f"  {res.error}" if res.error else ""))
     finally:
         models.clear()
+    if retry_push:  # one commit, not one per finished run (HF commit limits; RUN_LOG 16)
+        try:
+            hub_sync.push_runs(root, retry_push)
+        except Exception as exc:
+            log.warning("re-push of %d finished runs failed: %s", len(retry_push), exc)
     return results

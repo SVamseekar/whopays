@@ -152,3 +152,60 @@ def test_push_runs_without_token_is_noop(tmp_path):
     with mock.patch.object(hub_sync, "_api") as api:
         assert hub_sync.push_runs(tmp_path, ["r1"]) == []
     api.assert_not_called()
+
+
+def _finished(root, run_id):
+    d = root / run_id
+    d.mkdir(parents=True)
+    for name in ("DONE", "items.jsonl", "items.parquet", "config.yaml", "meta.json"):
+        (d / name).write_text("{}" if name == "DONE" else "")
+    return d
+
+
+def test_bulk_push_commits_only_finished_runs_once(tmp_path, monkeypatch):
+    from whopays.io import results
+
+    monkeypatch.setattr(results, "is_done", lambda d: (d / "DONE").exists())
+    calls = []
+    push = hub_sync.BulkPush(tmp_path, ["a", "b", "c"], interval=3600,
+                             push=lambda root, ids: calls.append(list(ids)) or list(ids))
+    _finished(tmp_path, "a")
+    (tmp_path / "b").mkdir()  # still running: no DONE
+    assert push.flush() == ["a"]
+    assert push.flush() == []  # nothing new: no empty commit
+    _finished(tmp_path, "c")
+    assert push.close() == ["c"]
+    assert calls == [["a"], ["c"]]
+
+
+def test_bulk_push_failure_is_retried_next_time(tmp_path, monkeypatch):
+    from whopays.io import results
+
+    monkeypatch.setattr(results, "is_done", lambda d: (d / "DONE").exists())
+    attempts = []
+
+    def flaky(root, ids):
+        attempts.append(list(ids))
+        if len(attempts) == 1:
+            raise RuntimeError("429")
+        return list(ids)
+
+    push = hub_sync.BulkPush(tmp_path, ["a"], push=flaky)
+    _finished(tmp_path, "a")
+    assert push.flush() == []
+    assert push.flush() == ["a"]
+    assert attempts == [["a"], ["a"]]
+
+
+def test_bulk_push_background_loop_flushes_on_interval(tmp_path, monkeypatch):
+    import threading
+
+    from whopays.io import results
+
+    monkeypatch.setattr(results, "is_done", lambda d: (d / "DONE").exists())
+    pushed = threading.Event()
+    _finished(tmp_path, "a")
+    push = hub_sync.BulkPush(tmp_path, ["a"], interval=0.01,
+                             push=lambda root, ids: pushed.set() or list(ids)).start()
+    assert pushed.wait(2)
+    assert push.close() == []

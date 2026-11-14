@@ -59,6 +59,7 @@ python scripts/modal_run.py --ref <sha> notebook <notebook>
 | --- | --- | --- |
 | Modal driver stays in `run_jobs.map` after Modal shows 0 tasks; nothing pushed | Unknown (open item) | Kill the driver; run `modal_app.push_results.remote(ids)` with the finished IDs (one commit) |
 | HTTP 429 from HF | Too many commits | Default is one bulk commit per grid; do not use `--push-each` for grids |
+| `[gpuN] Rate limited. Waiting 3500s before retry` on Kaggle; a worker idles an hour | Per-run commits from the workers (fixed after RUN_LOG 16, which lost about 10.7 GPU-hours) | `run_parallel` now runs workers with `--no-push` and commits in bulk every 15 min from the parent; if the line reappears, check that the notebook uses `run_parallel` from a commit at or after the fix |
 | `refusing to resume` | Partial folder from another commit | Section 2 rule, then rerun |
 | `secret HF_TOKEN not available (ConnectionError)` on Kaggle | First secret source failed | Harmless if the private `whopays-secrets` dataset fallback worked; check results reached HF |
 | `Cannot access kernel 'souramarti/whopays-runner' (Permission 'kernels.get' was denied)` | Kaggle CLI login expired (`~/.kaggle/credentials.json`); the run itself keeps going | User runs `! kaggle auth login`; meanwhile track progress by DONE count on HF (`scripts/parity_eval.py <size>` or `run_inventory.py`) |

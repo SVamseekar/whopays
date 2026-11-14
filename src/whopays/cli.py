@@ -17,6 +17,8 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("jobs")
     p_run.add_argument("--root", default=None, help="results root (default: platform default)")
     p_run.add_argument("--no-sync", action="store_true", help="do not pull/push the HF dataset")
+    p_run.add_argument("--no-push", action="store_true",
+                       help="pull from the HF dataset but leave uploads to the caller")
 
     p_hash = sub.add_parser("hash", help="print run IDs for a job-list YAML")
     p_hash.add_argument("jobs")
@@ -86,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from whopays.run import run
 
-    results = run(args.jobs, root=args.root, sync=not args.no_sync)
+    results = run(args.jobs, root=args.root, sync=not args.no_sync, push=not args.no_push)
     return int(any(r.status == "failed" for r in results))
 
 

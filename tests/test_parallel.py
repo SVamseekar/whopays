@@ -70,7 +70,7 @@ def test_run_parallel_launches_one_pinned_process_per_gpu(tmp_path):
         return proc
 
     with mock.patch.object(subprocess, "Popen", side_effect=fake_popen):
-        codes = parallel.run_parallel(jobs, gpus=2, workdir=tmp_path)
+        codes = parallel.run_parallel(jobs, gpus=2, workdir=tmp_path, sync=False)
     assert codes == [0, 0]
     assert sorted(env["CUDA_VISIBLE_DEVICES"] for _, env in procs) == ["0", "1"]
     listed = []
@@ -90,7 +90,7 @@ def test_run_parallel_raises_when_a_worker_fails(tmp_path):
 
     with (mock.patch.object(subprocess, "Popen", side_effect=fake_popen),
           pytest.raises(RuntimeError, match="worker 1")):
-        parallel.run_parallel(_jobs(), gpus=2, workdir=tmp_path)
+        parallel.run_parallel(_jobs(), gpus=2, workdir=tmp_path, sync=False)
 
 
 def test_run_parallel_can_leave_failures_to_the_caller(tmp_path):
@@ -101,7 +101,8 @@ def test_run_parallel_can_leave_failures_to_the_caller(tmp_path):
         return proc
 
     with mock.patch.object(subprocess, "Popen", side_effect=fake_popen):
-        assert parallel.run_parallel(_jobs(), gpus=2, workdir=tmp_path, check=False) == [1, 1]
+        codes = parallel.run_parallel(_jobs(), gpus=2, workdir=tmp_path, check=False, sync=False)
+    assert codes == [1, 1]
 
 
 def test_chunks_cover_jobs_once_and_stay_within_one_model_group():
@@ -123,3 +124,38 @@ def test_chunks_respect_the_target_unless_one_job_is_bigger():
 def test_large_target_keeps_whole_groups():
     jobs = _jobs()
     assert len(parallel.chunk_jobs(jobs, target_minutes=10_000)) == len(parallel.group_costs(jobs))
+
+
+def test_run_parallel_workers_never_push_and_parent_commits_in_bulk(tmp_path):
+    from whopays.io import hub_sync
+
+    jobs = _jobs()
+    cmds = []
+
+    def fake_popen(cmd, env, **kw):
+        cmds.append(cmd)
+        proc = mock.Mock()
+        proc.stdout = iter([])
+        proc.wait.return_value = 0
+        return proc
+
+    closed = []
+
+    class FakeBulk:
+        def __init__(self, root, run_ids, interval):
+            self.args = (root, list(run_ids), interval)
+
+        def start(self):
+            return self
+
+        def close(self):
+            closed.append(self.args)
+
+    with mock.patch.object(subprocess, "Popen", side_effect=fake_popen), \
+         mock.patch.object(hub_sync, "BulkPush", FakeBulk):
+        parallel.run_parallel(jobs, gpus=2, workdir=tmp_path, root=tmp_path / "res",
+                              push_interval=60)
+    assert all("--no-push" in cmd and "--no-sync" not in cmd for cmd in cmds)
+    [(root, ids, interval)] = closed
+    assert root == tmp_path / "res" and interval == 60
+    assert sorted(ids) == sorted(c.run_id for c in jobs)

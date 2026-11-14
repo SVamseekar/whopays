@@ -11,6 +11,7 @@ cheaper, what was rejected and why, and what is queued. Numbers come from logged
 | 2026-11-12 | Belebele prefill reuse (900 questions share 488 passages) | Exact; verified on a Modal T4 at `b820e74` | 30.6–33.0% of tokens removed (en, te, zh, bn) | DECISIONS 2026-11-12 |
 | 2026-11-13 | Modal fan-out for the replication grid (T4 ×≤10) | Same code path as Kaggle | Remaining 141 runs finished for $1.61 in about 1.9 summed T4-hours | RUN_LOG entry 14 |
 | 2026-11-13 | One bulk HF commit per Modal grid; background interval pushes | Upload only | Removes HTTP 429 waits | DECISIONS 2026-11-13 |
+| 2026-11-14 | Kaggle grids: workers never push; the parent commits finished runs in bulk every 15 min; skipped runs re-sent in one commit | Upload only | About 10.7 idle GPU-hours on the 1.5B ParityQuant grid (11 hour-long HTTP 429 waits), *projected* to drop to near zero | RUN_LOG 16 |
 | 2026-11-13 | 4-bit KV cache: per-token HQQ groups, batched MGSM generation (batch 8) | Numeric change, new run IDs (`KV_QUANT_RECIPE = 2`) | About 68 T4-hours, *projected*; T4 check of batch 8 versus batch 1 pending | DECISIONS 2026-11-13 |
 
 ## Backlog
@@ -23,6 +24,12 @@ cheaper, what was rejected and why, and what is queued. Numbers come from logged
 | Cheaper measurement | Plan the 693 remaining audit runs and 308 speed runs by logged per-cell rates; route by cost (Modal versus Kaggle) | Largest remaining compute | Not started |
 
 ## Passes
+
+### 2026-11-14: after the 1.5B ParityQuant run
+- Measured: 10.8 h wall for 19.69 summed job-hours on T4×2, against a projection of about 6 h wall. The gap is HTTP 429 waits on per-run commits: 11 waits of 3,065–3,596 s, about 10.7 GPU-hours. GPU 0's own work took about 4.5 of its 9.3 h.
+- Fixed: `hub_sync.BulkPush` and `run_parallel(push_interval=900)`; `whopays.run` re-sends skipped runs in one commit. Commits per grid drop from about one per run to about one per 15 minutes.
+- Per-run rates confirmed (no 429): Belebele 62–75 s for Latin, Han, Kana and Thai; 106–123 s for Bengali; 137–158 s for Telugu; about 730–810 s for English including GPTQ. Held-out FLORES 12–55 s.
+- Not run: 3B ParityQuant. It waits on the Belebele investigation (DECISIONS 2026-11-14).
 
 ### 2026-11-14: before the 1.5B ParityQuant launch
 - Cost picture (projected from logged rates, DECISIONS 2026-11-12): per quantized 1.5B model about
