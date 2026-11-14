@@ -43,6 +43,8 @@ For pasted text, save it to the scratchpad first, then run the parser on that fi
 - State plainly the observed value, the limit, and PASS, FAIL or INCOMPLETE. Use the verdict the code printed; do not recompute a looser one.
 - Show **all 11 languages** in every per-language table, never only the extremes. Build it with `python -m whopays.cli langtable <long.csv> --value <col> --by <cols> [--where col=value] [--interval low high]`; it uses the canonical order and prints `missing` for absent languages.
 - Label every result **confirmatory** (a preregistered test, as amended before the data was seen) or **exploratory** (anything else, including tests added by an amendment after the data was seen).
+- A gate that compares two arms of the same pipeline (batch 8 against batch 1, resume against fresh) can PASS while both arms are broken. Also read each arm's absolute numbers against a reference arm: the 2026-11-14 batch gate passed with 0 flips while the 4-bit cache scored 0/16 at both batch sizes against 7/16 for the full cache (RUN_LOG 17).
+- When a verdict rests on one quantized model per cell, compare the effect with the GPTQ seed spread from the replication grid's three seeds before calling a difference real. Item-bootstrap intervals ignore it: the K3 differences (1.5–2.2 nats) were inside a 5–7 nat seed spread (DECISIONS 2026-11-14).
 - Note partial patterns (which languages fail and which pass). Note anything that would be read differently under a stricter reading of the rule.
 - On FAIL, or an unexplained result, switch to the `investigate-then-research` skill before proposing fixes. On a kill gate failure, say so and propose the PRD's pivot.
 

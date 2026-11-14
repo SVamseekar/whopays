@@ -50,6 +50,10 @@ assume silence means agreement.
 - For each source used, record: claim, exact number with unit, where it is (section, table,
   figure), setting (model, size, languages, hardware), and whether that setting matches ours
   (Qwen2.5 1.5B–7B, 11 languages, T4 FP16).
+- Before naming a method in code or a decision ("KIVI's setting", "GPTQ defaults"), check the
+  exact recipe in the paper's method section. The 2026-11-13 decision called per-token HQQ keys
+  "KIVI's 4-bit setting"; KIVI quantizes keys per channel, and the per-token recipe collapsed
+  MGSM on Qwen2.5 (RUN_LOG 17).
 
 ## 5. Grade the evidence
 
