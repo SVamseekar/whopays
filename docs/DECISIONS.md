@@ -2,6 +2,10 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-14 — ParityQuant stops at the 1.5B negative result
+
+Owner's decision, from three options offered (width-capped exploratory rerun at about 2.5 T4-hours; stop; 3B). ParityQuant ends at the confirmatory 1.5B K3 NEGATIVE_RESULT. It is reported as a negative result, with the post-hoc CPU findings (2-bit non-additivity; held-out NLL gains that do not carry over to Belebele) labelled exploratory. No new ParityQuant GPU runs, no 3B profile and no `refine.py`. The audit (WhoPays) becomes the sole main contribution; the owner asked for paper-grade care on the remaining work. What would reverse this: a reviewer or venue requiring the width-capped rerun, which is costed above and needs no new code beyond a widths argument to the solver.
+
 ## 2026-11-14 — Kaggle grids commit to HF in bulk
 
 On notebook 06 each worker committed once per finished run in its own thread. Two workers hit HF's hourly commit limit about every 1.7 h, and `huggingface_hub` then slept the worker for up to an hour. That happened 11 times, about 10.7 idle GPU-hours (RUN_LOG 16). Now `run_parallel` starts workers with `whopays.cli run --no-push` and a `hub_sync.BulkPush` thread in the parent commits every finished, not yet uploaded run every 15 minutes, plus once at the end. The in-process `whopays.run` pass sends its skipped runs in one commit instead of one each. Trade-off: a run's partial progress is no longer mirrored mid-run under `run_parallel`; a session that dies loses at most the runs in progress plus up to 15 minutes of finished ones, all of which the resume path reruns. Numerics and run IDs are unchanged.
