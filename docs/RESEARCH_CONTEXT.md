@@ -25,6 +25,8 @@ Read this before writing anything that claims novelty: README, paper or comments
 | Fixed KV-cache eviction budgets penalize high-fertility languages; retention-matched (share-of-input) budgets remove the mean gap | "Equal Tokens, Unequal Losses", anonymous ACL submission 2026 (OpenReview 57mHZnnuEe); eviction only |
 | Speculative decoding widens cross-lingual latency gaps (21 languages) | "No Refund for the Token Tax", Oct 2026 preprint; speculation only |
 | Per-language correction of a quantized LLM (rank-2 LoRA per language on INT3 GPTQ Qwen2.5-3B / Llama-3.2-3B); perplexity–accuracy disconnect | [LCD](https://arxiv.org/abs/2608.11786), 2026 preprint; post-hoc adapters, not mixed precision, no worst-language objective |
+| Calibration language × bit-width × mixed precision (GPTQ 2–4 bit, SliM-LLM, TaCQ) on Qwen3-8B, Llama-3.1-8B, Aya; 5 languages (en, ta, id, sw, zh); gains "clear in perplexity, although rarely substantial in downstream tasks" | Waskito et al., [Findings of IJCNLP-AACL 2026](https://doi.org/10.18653/2026.findings-aacl.9); weights only, no KV cache, speculation, composition or attribution |
+| Scalar per-layer sensitivity proxies distort mixed-precision allocation, worst below 3 bits; cross-layer refinement fixes it | CASA, [arXiv 2609.25916](https://doi.org/10.48550/arxiv.2609.25916) (Sep 2026); inter-layer dependencies, [arXiv 2306.04879](https://doi.org/10.48550/arxiv.2306.04879) |
 
 ## Candidate contributions (novelty remains provisional)
 
