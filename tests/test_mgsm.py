@@ -1,4 +1,5 @@
 import pytest
+import torch
 
 from whopays import datasets, run
 from whopays.config import RunConfig
@@ -114,3 +115,67 @@ def test_quantized_cache_batches_per_sequence(tiny_hd128_dir, monkeypatch):
     batched = list(mgsm.score_items(four, b, qs, set()))
     assert [r["output_text"] for r in batched] == single
     assert all(r["batch_size"] == 4 for r in batched)
+
+
+@pytest.mark.parametrize("budget", [6, 40])
+def test_eviction_batches_per_sequence(bundle, tiny_model_dir, monkeypatch, budget):
+    """Batched sink+recent eviction equals the sequential batch-1 loop row by row (fp32 CPU):
+    prompts shorter and longer than the budget, eviction at prefill and during decoding."""
+    monkeypatch.setattr(mgsm, "MAX_NEW_TOKENS", 20)
+    kw = dict(model=str(tiny_model_dir), task="mgsm", lang="en", kv="evict", kv_budget=budget)
+    one, four = RunConfig(**kw, batch_size=1), RunConfig(**kw, batch_size=4)
+    qs = [{"item_id": f"m{i}", "question": "What is " + "x " * (6 * i) + f"{i}?", "gold": i}
+          for i in range(5)]
+    single = list(mgsm.score_items(one, bundle, qs, set()))
+    batched = list(mgsm.score_items(four, bundle, qs, set()))
+    assert [r["output_text"] for r in batched] == [r["output_text"] for r in single]
+    assert [r["output_tokens"] for r in batched] == [r["output_tokens"] for r in single]
+    assert [r["input_tokens"] for r in batched] == [r["input_tokens"] for r in single]
+    assert all(r["batch_size"] == 4 for r in batched)  # as the full cache logs it
+    lengths = [r["input_tokens"] for r in single]
+    assert max(lengths) > budget  # eviction at prefill
+    if budget == 40:
+        assert min(lengths) < budget  # and rows evicted only while decoding
+
+
+def test_eviction_batch_passes_absolute_positions(bundle, tiny_model_dir, monkeypatch):
+    """After columns are evicted the mask no longer encodes positions; each decode step must
+    pass every row's own absolute position (prompt length + tokens generated so far)."""
+    import types
+
+    monkeypatch.setattr(mgsm, "MAX_NEW_TOKENS", 6)
+    seen = []
+    real = bundle.model
+
+    class Spy:
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+        def __call__(self, **kw):
+            seen.append(kw["position_ids"].clone())
+            return real(**kw)
+
+    spied = types.SimpleNamespace(**{**vars(bundle), "model": Spy()})
+    cfg = RunConfig(model=str(tiny_model_dir), task="mgsm", lang="en", kv="evict",
+                    kv_budget=8, batch_size=3)
+    qs = [{"item_id": f"m{i}", "question": "What is " + "x " * (6 * i) + "?", "gold": i}
+          for i in range(3)]
+    rows = list(mgsm.score_items(cfg, spied, qs, set()))
+    lengths = torch.tensor([r["input_tokens"] for r in rows])
+    prefill, *decode = seen
+    assert prefill.shape[1] == int(lengths.max())
+    assert (prefill[:, -1] == lengths - 1).all()
+    for step, pos in enumerate(decode):
+        assert (pos[:, 0] == lengths + step).all()
+
+
+def test_batch_gate_reports_agreement_and_passes_in_fp32(bundle, tiny_model_dir, monkeypatch):
+    from whopays import gates
+
+    monkeypatch.setattr(mgsm, "MAX_NEW_TOKENS", 6)
+    table, verdict = gates.batch_gate(str(tiny_model_dir), langs=("en",), n=3, batch_size=2,
+                                      kv_policies=("full", "evict"), loader=lambda c: bundle,
+                                      items=lambda lang: items(3))
+    assert verdict == "PASS"
+    assert list(table.kv) == ["full", "evict"]
+    assert (table.same_text == 3).all() and (table.flips == 0).all()

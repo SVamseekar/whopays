@@ -73,3 +73,50 @@ def require_k2(rows) -> bool:
         log.warning("K2 passed but split-half reliability is low (%.3f); differences between "
                     "languages may be sampling noise", verdict.split_half_min)
     return True
+
+
+BATCH_GATE_MAX_FLIPS = 2  # per (cache policy, language) out of BATCH_GATE_N problems
+
+
+def batch_gate(model: str, *, langs=("en", "te"), n: int = 16, batch_size: int = 8,
+               kv_policies=("full", "quant4", "evict"), loader=None,
+               items=None) -> tuple[pd.DataFrame, str]:
+    """Compare batched against batch-1 MGSM generation per cache policy on one GPU.
+
+    Batching changes FP16 numerics only (rows are equal in fp32; tests/test_mgsm.py), so
+    near-tied greedy choices may move. The full cache is the reference: its batched cells are
+    already accepted. PASS when no policy and language flips the correctness of more than
+    BATCH_GATE_MAX_FLIPS of `n` problems. Also returns seconds per problem for planning.
+    Nothing is written to the results dataset.
+    """
+    from whopays.config import RunConfig
+    from whopays.datasets import mgsm as load_mgsm
+    from whopays.models.loader import load
+    from whopays.tasks import mgsm
+
+    bundle = (loader or load)(RunConfig(model=model, task="mgsm", lang=langs[0]))
+    records = []
+    for lang in langs:
+        problems = (items or load_mgsm)(lang)[:n]
+        for kv in kv_policies:
+            out = {}
+            for size in (1, batch_size):
+                cfg = RunConfig(model=model, task="mgsm", lang=lang, kv=kv, batch_size=size,
+                                limit=n)
+                start = time.perf_counter()
+                out[size] = list(mgsm.score_items(cfg, bundle, problems, set()))
+                out[f"t{size}"] = (time.perf_counter() - start) / len(problems)
+            one, many = out[1], out[batch_size]
+            pairs = list(zip(one, many, strict=True))
+            records.append({
+                "lang": lang, "kv": kv, "n": len(one),
+                "same_text": sum(a["output_text"] == b["output_text"] for a, b in pairs),
+                "correct_b1": sum(r["correct"] for r in one),
+                "correct_batched": sum(r["correct"] for r in many),
+                "flips": sum(a["correct"] != b["correct"] for a, b in pairs),
+                "s_per_problem_b1": round(out["t1"], 3),
+                "s_per_problem_batched": round(out[f"t{batch_size}"], 3),
+            })
+    table = pd.DataFrame(records)
+    verdict = "PASS" if (table.flips <= BATCH_GATE_MAX_FLIPS).all() else "FAIL"
+    return table, verdict

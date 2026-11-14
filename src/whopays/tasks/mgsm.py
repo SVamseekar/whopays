@@ -35,8 +35,9 @@ MAX_NEW_TOKENS = 256
 # KV policies generated in batches like the full cache. The 4-bit cache qualifies because its
 # HQQ groups stay within one sequence (kv.policies.QUANT_AXIS), so batching changes only FP16
 # batch numerics, as for the full cache; tests check rows equal batch-1 rows in fp32.
-# Eviction still runs one sequence at a time. Speculative decoding always does (speed grid).
-BATCHED_KV = {"full", "quant4"}
+# Eviction batches through `_generate_evicting`, which keeps each row's own sink and recent
+# tokens. Speculative decoding always runs one sequence at a time (speed grid).
+BATCHED_KV = {"full", "quant4", "evict"}
 
 # lm-eval mgsm utils.py: question marker and "step-by-step answer" cue per language.
 PROMPTS = {
@@ -129,6 +130,8 @@ def generate_batch(bundle, cfg: RunConfig, prompts: Sequence[str]) -> list[dict]
     tok, model = bundle.tokenizer, bundle.model
     tok.padding_side = "left"
     enc = tok(list(prompts), return_tensors="pt", padding=True).to(bundle.device)
+    if cfg.kv == "evict":
+        return _generate_evicting(bundle, cfg, enc)
     extra = {}
     if cfg.kv == "quant4":
         from whopays.kv.policies import new_cache
@@ -151,6 +154,91 @@ def generate_batch(bundle, cfg: RunConfig, prompts: Sequence[str]) -> list[dict]
         results.append({"input_tokens": int(mask.sum()), "output_tokens": n_out,
                         "text": tok.decode(gen[:n_out], skip_special_tokens=True)})
     return results
+
+
+def _evict_rows(cache, mask: torch.Tensor, budget: int) -> torch.Tensor:
+    """Apply sink+recent eviction to every row of a left-padded batch; return the new mask.
+
+    Each row holds left padding followed by its real tokens. A row with more than `budget`
+    real tokens keeps its first `min(4, budget)` real tokens and its last `budget - sink`; a row
+    with fewer keeps its last `budget` columns, padding still masked. That is what
+    `kv.policies` does to the same sequence alone (sink+recent; nothing evicted at or under the
+    budget). Keys keep their RoPE rotation, so callers pass absolute positions.
+    """
+    width = mask.shape[1]
+    if width <= budget:
+        return mask
+    sink = min(4, budget)
+    recent = budget - sink
+    n_real = mask.sum(dim=1)
+    first = width - n_real  # real tokens are contiguous at the right
+    arange = torch.arange(budget, device=mask.device)
+    tail = torch.arange(width - budget, width, device=mask.device).expand(len(mask), budget)
+    head = torch.where(arange < sink, first[:, None] + arange,
+                       width - recent + (arange - sink))
+    index = torch.where((n_real > budget)[:, None], head, tail)
+    for layer in cache.layers:
+        gather = index[:, None, :, None].expand(-1, layer.keys.shape[1], -1, layer.keys.shape[-1])
+        layer.keys = layer.keys.gather(2, gather)
+        layer.values = layer.values.gather(2, gather)
+    return mask.gather(1, index)
+
+
+def _generate_evicting(bundle, cfg: RunConfig, enc) -> list[dict]:
+    """Greedy batched generation under the fixed-budget eviction policy.
+
+    `model.generate` derives positions from the attention mask, which is wrong once columns are
+    evicted, so this loop passes each row's absolute positions. It mirrors the sequential loop
+    in `decoding.speculative`: evict after prefill and after every accepted token; a row stops
+    at EOS or once its decoded text contains the stop string (that token is kept).
+    """
+    from transformers import DynamicCache
+
+    tok, model = bundle.tokenizer, bundle.model
+    ids, mask = enc["input_ids"], enc["attention_mask"].long()
+    eos = {tok.eos_token_id} | set(_as_list(getattr(model.generation_config, "eos_token_id",
+                                                    None)))
+    eos -= {None}
+    pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
+    stop = PROMPTS[cfg.lang][0]
+    n_prompt = mask.sum(dim=1)
+    cache = DynamicCache(config=model.config)
+    positions = (mask.cumsum(dim=1) - 1).clamp(min=0)
+    out = model(input_ids=ids, attention_mask=mask, position_ids=positions,
+                past_key_values=cache, use_cache=True)
+    cache = out.past_key_values
+    mask = _evict_rows(cache, mask, cfg.kv_budget)
+    logits = out.logits[:, -1]
+    generated: list[list[int]] = [[] for _ in range(len(ids))]
+    done = [False] * len(ids)
+    for step in range(MAX_NEW_TOKENS):
+        tokens = logits.argmax(dim=-1).tolist()
+        for i, token in enumerate(tokens):
+            if done[i]:
+                continue
+            generated[i].append(token)
+            if token in eos or stop in tok.decode(generated[i], skip_special_tokens=True):
+                done[i] = True
+        if all(done) or step == MAX_NEW_TOKENS - 1:
+            break
+        feed = torch.tensor([[pad if d else t] for t, d in zip(tokens, done, strict=True)],
+                            device=ids.device)
+        mask = torch.cat([mask, torch.ones_like(mask[:, :1])], dim=1)
+        out = model(input_ids=feed, attention_mask=mask,
+                    position_ids=(n_prompt + step)[:, None], past_key_values=cache,
+                    use_cache=True)
+        cache = out.past_key_values
+        mask = _evict_rows(cache, mask, cfg.kv_budget)
+        logits = out.logits[:, -1]
+    return [{"input_tokens": int(n), "output_tokens": len(gen),
+             "text": tok.decode(gen, skip_special_tokens=True)}
+            for n, gen in zip(n_prompt.tolist(), generated, strict=True)]
+
+
+def _as_list(value) -> list:
+    if value is None:
+        return []
+    return list(value) if isinstance(value, (list, tuple, set)) else [value]
 
 
 def score_items(cfg: RunConfig, bundle, items: Sequence[dict], skip: set[str]) -> Iterator[dict]:

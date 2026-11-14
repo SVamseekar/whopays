@@ -2,6 +2,7 @@
 
     python scripts/modal_run.py env                          # smoke test: print the stack
     python scripts/modal_run.py fr3                          # FR-3 check, one T4
+    python scripts/modal_run.py batchgate                    # MGSM batch 8 vs 1 per cache
     python scripts/modal_run.py notebook 03_sensitivity_probe
     python scripts/modal_run.py jobs configs/audit.yaml --chunk-minutes 60
 
@@ -50,6 +51,7 @@ def main() -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("env")
     sub.add_parser("fr3", help="FR-3 check on one T4 (K1 gate, ours, references)")
+    sub.add_parser("batchgate", help="MGSM batch 8 vs batch 1 per cache policy, 1.5B, one T4")
     n = sub.add_parser("notebook")
     n.add_argument("name")
     j = sub.add_parser("jobs")
@@ -85,6 +87,12 @@ def main() -> int:
                     "print(t.round(3).to_string(index=False)); print(v); "
                     "print('official (secondary):'); print(o.round(3).to_string(index=False)); "
                     "raise SystemExit(0 if v['FR3'] == 'PASS' else 3)")
+            return modal_app.python.spawn(code).get(timeout=6 * 3600)
+        if args.cmd == "batchgate":
+            code = ("from whopays import gates; from whopays.grids import QWEN; "
+                    "t, v = gates.batch_gate(QWEN['1.5B']); "
+                    "print(t.to_string(index=False)); print('batch gate:', v); "
+                    "raise SystemExit(0 if v == 'PASS' else 3)")
             return modal_app.python.spawn(code).get(timeout=6 * 3600)
         if args.cmd == "notebook":
             return modal_app.notebook.spawn(args.name).get(timeout=12 * 3600)
