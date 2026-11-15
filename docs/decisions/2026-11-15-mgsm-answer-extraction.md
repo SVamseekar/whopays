@@ -66,7 +66,7 @@ where a treatment's answers put their last number.
 2. Every MGSM contrast is also scored with C (`extract_after_answer_word`) as an **extraction-sensitivity check**, as "Same Answer, New Box" recommends. A and C fail in opposite directions on restated numbers, so their gap per cell bounds how much extraction can move it. An MGSM claim needs the same sign and BH significance under both; disagreement is reported, not resolved by choosing one.
 3. C is not a corrected score: it is not validated and has known failure modes. It is labelled exploratory and written after seeing outputs.
 4. Validation by an independent reader (option E) on a stratified sample (for example 20 disagreements per language plus 20 agreements) is the next step if MGSM claims go into the paper. It needs either the owner's approval for a small API spend or owner hand-labels. Not started.
-5. The 3B-versus-1.5B English MGSM comparison is not reported as a model difference: both extractors leave 3B below 1.5B, but 64% of 3B English answers carry no answer word and the sampled losses are extraction errors.
+5. The 3B-versus-1.5B English MGSM comparison is not reported as a model difference: both extractors leave 3B below 1.5B, but 64% of 3B English answers carry no answer word. Two mechanisms act together: 103 of 3B's 120 English errors hit the 256-token cap (truncated before a conclusion), and among finished answers the last number is often a restated question number (examples above). Correction 2026-11-15: an earlier wording attributed the losses to extraction alone; the truncation count comes from an external blinded check and was verified.
 
 ## Rejected
 
