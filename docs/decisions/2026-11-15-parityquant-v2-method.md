@@ -104,3 +104,12 @@ preregistered or run yet.
 - Language-targeted pruning and calibration language reach TACL (Kurz et al., [TACL 2026](https://aclanthology.org/2026.tacl-1.9)), so a journal is a realistic venue for either paper.
 - Labs and programmes with matching stated focus: Cohere Labs (Multilingual, Efficiency, Inference, Social Impact; Scholars Program), IST Austria Alistarh group (GPTQ, low-precision LLMs), Edinburgh (efficient LLM inference studentship, Ponti; ML Systems CDT), Copenhagen DIKU (resource-efficient generative AI PhD), ELLIS (ML and Sustainability; multilingual NLP faculty in Copenhagen and Lisbon).
 - The token-tax literature (Ahia et al., EMNLP 2023; "The Token Tax", arXiv 2509.05486) prices tokenization only; WhoPays extends the question to inference optimizations.
+
+## Update after the second search pass (2026-11-15)
+
+- **DRPruning** (ACL 2025) applies DRO over domains during pruning with continued training; it is the nearest algorithmic prior and is cited. ParityGPTQ stays distinct: training-free, calibration-only, acting on GPTQ's Hessian.
+- **DoReMi** (excess loss over a reference) and **CTC-DRO** (group losses must be comparable; smooth the weight update) shape the update rule: loss = NLL increase per parallel sentence over FP16 (already our unit), with a smoothed exponentiated-gradient step.
+- **Risk:** arXiv 2611.11079 finds single-pass GPTQ responds weakly to calibration data across task families at 3 bits. Our replication data says language is different: English versus multilingual calibration moves Telugu's 3-bit held-out increase from 200.4 to 85.4 nats and 4-bit from 65.5 to 38.4. A one-model pilot tests this first.
+- **Second arm:** "Saturation Makes Quantization Error Additive" (arXiv 2607.12266) reports additivity at 4 bits; our v1 maps were super-additive only with 2-bit blocks. A width-capped allocator (widths {3, 4, 8}) can therefore use the measured profile; it is a new, preregistered arm, not a re-test of v1.
+- **Pilot (proposed):** 1.5B, W3, seed 0: equal mix versus ParityGPTQ (5 rounds), held-out FLORES and Belebele. About 1.5–2 T4-hours; Modal about 1.5–2 USD or a Kaggle session after the quota reset.
+- Full corpus: `docs/literature/parityquant-v2.md`.
