@@ -183,3 +183,42 @@ def test_batch_gate_reports_agreement_and_passes_in_fp32(bundle, tiny_model_dir,
     assert verdict == "PASS"
     assert list(table.kv) == ["full", "evict"]
     assert (table.same_text == 3).all() and (table.flips == 0).all()
+
+
+# Exploratory re-score (DECISIONS 2026-11-15): first number after the last answer word.
+@pytest.mark.parametrize("lang,text,expected", [
+    # Answer restated with question numbers after it: last-number reads 4, the cue reads 7.
+    ("en", "84 / 12 = 7 dozens.\n\nAnswer: Claire will eat 7 dozens of eggs in 4 weeks.", 7.0),
+    # The answer word inside a later sentence wins over an earlier one.
+    ("en", "The answer is 5? No.\nSo the answer is 12 apples for 3 people.", 12.0),
+    # Truncated after the last cue: fall back to the previous cue that has a number.
+    ("en", "The answer is 253.\nAnswer: Mishka spent", 253.0),
+    # Native script and native digits.
+    ("te", "మొత్తం 6. సమాధానం: ౧౮ రూపాయలు, 3 రోజులు", 18.0),
+    ("fr", "Résultat : 540 mètres. La réponse est : 540 mètres. La", 540.0),
+    ("zh", "所以答案是 42 个，共 3 天。", 42.0),
+])
+def test_extract_after_answer_word(lang, text, expected):
+    value, used = mgsm.extract_after_answer_word(text, lang)
+    assert value == expected and used
+
+
+def test_extract_after_answer_word_falls_back_to_last_number():
+    value, used = mgsm.extract_after_answer_word("3 + 4 = 7, then 7 * 2 = 14", "en")
+    assert value == 14.0 and not used
+    assert mgsm.extract_after_answer_word("no digits here", "en") == (None, False)
+
+
+def test_extract_after_answer_word_ignores_text_after_a_new_question():
+    # A continuation that starts a new question (any language's marker) is cut first.
+    text = "The answer is 9.\nFrage: Wie viele? The answer is 4."
+    assert mgsm.extract_after_answer_word(text, "en") == (9.0, True)
+
+
+def test_answer_words_come_from_lm_eval_phrases():
+    # One answer word per language, each present in lm-eval 0.4.13's mgsm_native_cot
+    # strict-match phrase or answer cue (bn: the cue, since its strict pattern is English).
+    assert set(mgsm.ANSWER_WORDS) == set(mgsm.PROMPTS)
+    for lang, word in mgsm.ANSWER_WORDS.items():
+        source = mgsm.PROMPTS[lang][1] + " " + mgsm.LMEVAL_STRICT[lang]
+        assert word.casefold() in source.casefold()

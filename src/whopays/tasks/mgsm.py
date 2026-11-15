@@ -100,6 +100,42 @@ def extract_ascii_lmeval(text: str) -> str | None:
     return last.translate(str.maketrans("", "", string.punctuation)) or None
 
 
+# Exploratory re-score only (DECISIONS 2026-11-15); never the primary score.
+# lm-eval 0.4.13 mgsm_native_cot strict-match phrases, copied from its generated task YAMLs
+# (Bengali's pattern there is English).
+LMEVAL_STRICT = {
+    "bn": "The answer is", "de": "Die Antwort lautet", "en": "The answer is",
+    "es": "La respuesta es", "fr": "La réponse est", "ja": "答えは", "ru": "Ответ —",
+    "sw": "Jibu ni", "te": "సమాధానం", "th": "คำตอบคือ", "zh": "答案是",
+}
+# The answer word of each language, taken from those phrases or from lm-eval's answer cue
+# (PROMPTS[lang][1]); tests check every word appears there. Matched case-insensitively.
+ANSWER_WORDS = {
+    "bn": "উত্তর", "de": "Antwort", "en": "answer", "es": "respuesta", "fr": "réponse",
+    "ja": "答え", "ru": "Ответ", "sw": "Jibu", "te": "సమాధానం", "th": "คำตอบ", "zh": "答案",
+}
+
+
+def extract_after_answer_word(text: str, lang: str) -> tuple[float | None, bool]:
+    """First number after the last answer word that has one; else the last number.
+
+    The text is first cut at the earliest question marker of any MGSM language, so a
+    continuation that starts a new problem cannot supply the answer. Returns (value, used),
+    where `used` says whether an answer word supplied the value. This reads a stated answer
+    even when the model restates question numbers after it ("Answer: 7 dozens in 4 weeks"),
+    which last-number extraction scores as 4.
+    """
+    cuts = [i for i in (text.find(q) for q, _ in PROMPTS.values()) if i >= 0]
+    text = text[:min(cuts)] if cuts else text
+    word = re.compile(re.escape(ANSWER_WORDS[lang]), re.IGNORECASE)
+    for match in reversed(list(word.finditer(text))):
+        for token in _NUMBER.findall(text[match.end():]):
+            value = _to_number(token)
+            if value is not None:
+                return value, True
+    return extract_number(text), False
+
+
 def truncate_at_stop(text: str, lang: str) -> tuple[str, bool]:
     marker = PROMPTS[lang][0]
     idx = text.find(marker)
