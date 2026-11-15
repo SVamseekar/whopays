@@ -222,7 +222,7 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 ### 22. 2026-11-15, Kaggle T4×2: notebook 04 audit slices 3 and 4 combined
 - Job lists: `configs/audit_slice_03.yaml` + `configs/audit_slice_04.yaml`, 144 runs, all 3B (FP16, W8 RTN, W4 GPTQ multilingual seed 0). First 3B GPTQ timing.
 - Projected 12.9 GPU-hours at a pessimistic 3B GPTQ time of 1950 s; about 7.5 h wall on the busier GPU (groups 5.4 h; 4.1 + 3.4 h).
-- Kaggle quota at launch (owner's screenshot of the settings page, 2026-11-15 about 02:40 UTC): 15 h 4 min of 30 h GPU left this week. Slices 0–2 used about 14.8 h of session time since Saturday, which suggests the weekly reset is at Saturday 00:00 UTC. Kaggle counts session hours, not GPU-hours: T4×2 costs the same as one T4. Budget: slices 03+04 about 7.5–8 h, then 05+06 about 6 h, leaving about 1 h; the speed grid waits for the next reset.
+- Kaggle quota at launch (owner's screenshot of the settings page, 2026-11-15 about 02:40 UTC): 15 h 4 min of 30 h GPU left this week. Slices 0–2 used about 14.8 h of session time since Saturday, so the reset falls at or before slice 0 (Saturday); the owner thinks it may be today (2026-11-15) and will confirm. Reset day unconfirmed. Kaggle counts session hours, not GPU-hours: T4×2 costs the same as one T4. Budget: slices 03+04 about 7.5–8 h, then 05+06 about 6 h, leaving about 1 h; the speed grid waits for the next reset.
 - Outcome: pending.
 
 ## Results dataset snapshot (2026-11-13)
