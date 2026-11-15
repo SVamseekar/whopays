@@ -217,6 +217,7 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 - Outcome: complete at `e31b9d3`. 190 of 190 runs done (157 new: 118 Belebele, 39 MGSM), 0 failed, 0 HF rate-limit waits, notebook reached its end, 4.65 h wall. All on HF.
 - First measured 3B rates (FP16): Belebele 0.152 s per item, 1.79× the 1.5B rate (by cache: full 1.32×, quant4 1.53×, evict 1.81×); MGSM full cache 1.22× the 1.5B rate on the same six languages (en, de, fr, es, ru, zh). The PRD's 2× planning factor was too high. 3B GPTQ time is still unmeasured (this slice had no 3B GPTQ model).
 - Slices 03–06 re-projected from these rates: 6.2, 6.3–6.9, 6.5–7.2 and 1.3–1.7 GPU-hours (range over a 3B GPTQ time of 650–1950 s), against about 10 each as planned. They are merged into two sessions, 03+04 and 05+06 (DECISIONS 2026-11-15).
+- 3B FP16 Belebele, full cache: en 87.1, de 81.8, fr 82.0, es 81.0, ru 80.8, zh 84.4, ja 76.2, th 74.7, bn 58.9, sw 37.3, te 38.0. `quant4` within 0.4 points everywhere. `evict`: bn −9.0, th −3.3, te −2.1, others 0.0 to −0.4. The eviction cost in Bengali is much larger than at 1.5B (−2.0), where Bengali sits nearer the floor (39.8). Unpaired-significance not yet computed; descriptive.
 
 ### 22. 2026-11-15, Kaggle T4×2: notebook 04 audit slices 3 and 4 combined
 - Job lists: `configs/audit_slice_03.yaml` + `configs/audit_slice_04.yaml`, 144 runs, all 3B (FP16, W8 RTN, W4 GPTQ multilingual seed 0). First 3B GPTQ timing.
