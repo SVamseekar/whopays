@@ -145,7 +145,7 @@ experiment is authorized by a passing unit test alone.
   - [x] 2026-11-14, Kaggle T4×2 at `2a7caef` (RUN_LOG 16): 1.5B evaluated, 396 runs. **K3 NEGATIVE_RESULT**: minimax beats the average objective only at 3.0 bits (+1.50 nats per sentence, CI [0.06, 2.98]) and loses at 3.5 and 4.0. Per the PRD, ParityQuant is reported as a negative result. CPU check: the additive single-block model breaks in step with the number of 2-bit blocks, which also explains the Belebele collapse (DECISIONS 2026-11-14).
   - [x] 2026-11-14, owner's decision: ParityQuant stops here. No width-capped rerun and no 3B evaluation. It is written up as a negative result plus the NLL-versus-accuracy caution (exploratory). All further GPU time goes to the audit (M2) and the speed grid.
 - [x] ~~Optional: `parityquant/refine.py` (FR-14).~~ Dropped: K3 negative (DECISIONS 2026-11-14).
-- [ ] Write the ParityQuant negative-result section (confirmatory K3, exploratory 2-bit and Belebele findings), after `adversarial-review`.
+- [x] Write the ParityQuant negative-result section (confirmatory K3, exploratory 2-bit and Belebele findings), after `adversarial-review`. Draft: `docs/preprint/PARITYQUANT_NEGATIVE.md` (2026-11-15); the Belebele gap figure from the review was corrected while drafting.
 
 ## M5 — Scale + release (weeks 15–16)
 - [ ] Notebook `07_scale_7b`.

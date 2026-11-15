@@ -47,3 +47,13 @@ blocks, minimax was ahead (+1.50 nats, item CI excluding 0), and the additive mo
 - Claim 3, narrowed and cited: the multilingual instance of scalar-proxy failure (CASA; inter-layer dependency work), with the confound stated.
 - Claim 4, narrowed and cited: "at chance in all eight languages with FP16 accuracy above 60%", positioned against LCD and Waskito et al.
 - No new GPU work required for these wordings.
+
+## Correction (2026-11-15)
+
+The "6–11 points" figure for the 4.0-bit Belebele gap was wrong. Recomputed from
+`docs/figures/parityquant_1.5B_belebele.csv` against uniform multilingual W4, in the eight languages
+with FP16 accuracy above 60%: minimax trails by 8.3–14.1 points and the average allocator by
+3.0–11.6. Every gap exceeds that language's three-seed spread (0.8–4.0 points, RUN_LOG 20), except
+the average allocator in French (4.0 against 4.0); Thai is not marginal (3.0 and 8.9 against 0.8).
+The draft `docs/preprint/PARITYQUANT_NEGATIVE.md` uses the corrected figures. The claim-2 wording
+above is superseded by the draft's.
