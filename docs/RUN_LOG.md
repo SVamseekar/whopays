@@ -223,6 +223,16 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 - Job lists: `configs/audit_slice_03.yaml` + `configs/audit_slice_04.yaml`, 144 runs, all 3B (FP16, W8 RTN, W4 GPTQ multilingual seed 0). First 3B GPTQ timing.
 - Projected 12.9 GPU-hours at a pessimistic 3B GPTQ time of 1950 s; about 7.5 h wall on the busier GPU (groups 5.4 h; 4.1 + 3.4 h).
 - Kaggle quota at launch (owner's screenshot of the settings page, 2026-11-15 about 02:40 UTC): 15 h 4 min of 30 h GPU left this week. Slices 0–2 used about 14.8 h of session time since Saturday, so the reset falls at or before slice 0 (Saturday); the owner thinks it may be today (2026-11-15) and will confirm. Reset day unconfirmed. Kaggle counts session hours, not GPU-hours: T4×2 costs the same as one T4. Budget: slices 03+04 about 7.5–8 h, then 05+06 about 6 h, leaving about 1 h; the speed grid waits for the next reset.
+- Outcome: complete at `1cfa018`. 144 of 144 runs done (66 Belebele, 78 MGSM), 0 failed, 0 HF rate-limit waits, notebook reached its end, 7.75 h wall (13.46 summed GPU-hours against 12.9 projected).
+- 3B GPTQ (W4, multilingual, seed 0): 1417 s from model load to the end of the first run, so about 1250–1300 s of quantization, about 2× the 1.5B time. 3B rates over slices 2–4: Belebele 0.148 s per item, MGSM 1.94 s per problem.
+- Within-model KV contrasts (`kv_within_model_table`, slices 0–4): 5 of 506 survive Benjamini–Hochberg, all 3B Belebele eviction: Bengali −9.0 (FP16), −9.2 (W8), −7.2 (W4); Thai −3.3 (FP16), −3.0 (W8). Bengali keeps 50% of its prompt, Thai 86%.
+- 3B Belebele, full cache: FP16 en 87.1 … te 38.0 (RUN_LOG 21); W8 within 0.7 points of FP16 in every language; W4 (multilingual, seed 0) 2.3–4.0 points lower in ten languages and +0.9 in Telugu.
+- 3B MGSM FP16 full cache: en 52.0, de 55.6, fr 50.0, es 44.4, ru 47.2, zh 67.2, ja 38.0, th 30.0, bn 12.4, sw 4.8, te 4.0. English is below 1.5B's 61.2 while every other language is higher, and 52% of 3B English answers hit the 256-token cap against 22% at 1.5B. This points at the last-number extractor reading run-on text (DECISIONS 2026-11-15), not at an English regression; the MGSM re-score must precede any MGSM claim. W4 3B MGSM en 31.6 with 86% cap hits.
+- Interim table: `docs/figures/audit_interim_kv_within_model.csv` (refreshed).
+
+### 23. 2026-11-15, Kaggle T4×2: notebook 04 audit slices 5 and 6 combined
+- Job lists: `configs/audit_slice_05.yaml` + `configs/audit_slice_06.yaml`, 81 runs, all 3B (W4 multilingual seed 0 remainder, W3 multilingual seed 0). Last audit session.
+- Projected about 8 GPU-hours; the busier GPU carries the W3 group, about 5.7 h with a 3B GPTQ time of about 1300 s. Kaggle quota left before launch: about 7.3 h (15 h 4 min minus slices 3+4).
 - Outcome: pending.
 
 ## Results dataset snapshot (2026-11-13)
