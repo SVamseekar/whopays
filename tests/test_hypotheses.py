@@ -182,6 +182,32 @@ def test_language_config_table_applies_bh_over_the_whole_family():
     assert not table[table.weight == 'w8_rtn'].reject.any()
 
 
+def test_kv_within_model_compares_each_policy_with_the_same_weights():
+    # The W4 model is worse than FP16 everywhere; eviction costs only Telugu, and only where
+    # context was removed. Comparing with FP16 would mix the weight effect into the KV effect.
+    w4_full = _cell({'en': .7, 'te': .7}, weight='w4_gptq', calib='multi')
+    w4_evict = _cell({'en': .7, 'te': .4}, weight='w4_gptq', calib='multi', kv='evict')
+    w4_evict['context_tokens'] = 300
+    w4_evict['kept_context_tokens'] = np.where(w4_evict.lang == 'te', 150, 300)
+    w4_quant = _cell({'en': .7, 'te': .7}, weight='w4_gptq', calib='multi', kv='quant4')
+    fp16 = _cell({'en': .9, 'te': .9})
+    rows = pd.concat([fp16, w4_full, w4_evict, w4_quant], ignore_index=True)
+    table = hyp.kv_within_model_table(rows, n_resamples=50)
+    assert set(table.kv) == {'evict', 'quant4'} and set(table.weight) == {'w4_gptq'}
+    te = table[(table.kv == 'evict') & (table.lang == 'te')].iloc[0]
+    assert te.delta == pytest.approx(-0.3, abs=0.06) and bool(te.reject)
+    assert te.base == pytest.approx(0.7, abs=0.06)
+    assert te.kept_share == pytest.approx(0.5)
+    assert not table[table.kv == 'quant4'].reject.any()
+    assert table[table.kv == 'quant4'].kept_share.isna().all()
+
+
+def test_kv_within_model_skips_incomplete_cells():
+    full = _cell({'en': .7, 'te': .7}, weight='w4_gptq')
+    evict = _cell({'en': .7}, weight='w4_gptq', kv='evict')
+    assert hyp.kv_within_model_table(pd.concat([full, evict]), n_resamples=20).empty
+
+
 def test_attribution_needs_all_eight_cells():
     frames = []
     for w, weight in enumerate(('fp16', 'w4_gptq')):

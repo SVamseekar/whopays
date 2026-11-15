@@ -2,6 +2,10 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-15 — Adversarial review of the 3B eviction cost in Bengali and Thai: narrowed, held
+
+Full note: [docs/decisions/2026-11-15-eviction-bengali-adversarial-review.md](decisions/2026-11-15-eviction-bengali-adversarial-review.md). Of 418 interim within-model KV contrasts (slices 0–2), only two survive Benjamini–Hochberg: 3B FP16 eviction in Bengali, −9.0 points [−12.0, −6.1], and Thai, −3.3 [−4.8, −2.0]. The loss sits entirely on truncated items. The direction is prior art ("Equal Tokens, Unequal Losses"), so it is cited, not claimed. The larger loss at 3B than at 1.5B (Bengali −7.0 [−10.6, −3.4]) is exploratory and partly a floor effect: 1.5B Bengali is only 15 points above chance. Above-chance loss is reported beside raw points. Claims about the weight × eviction interaction wait for slices 3–6 and one H2 run on the full family. New tested function `report.hypotheses.kv_within_model_table`; interim table `docs/figures/audit_interim_kv_within_model.csv`.
+
 ## 2026-11-15 — Audit slices 03–06 run as two Kaggle sessions
 
 Slice 2 (RUN_LOG 21) measured the first 3B rates: Belebele 1.79× and MGSM 1.22× the 1.5B per-item rate, below the PRD's 2× planning factor. Re-projected from these rates, slices 03–06 need about 20–22 GPU-hours, not about 33. Each slice would take about 3 h of wall time on Kaggle's two T4s, while slice 1 waited 2.7 h in Kaggle's queue before starting. So slices 03+04 and 05+06 run as two sessions (notebook 04 now takes `SLICES`). This is scheduling only: the job lists, run IDs and numerics are unchanged. The W4 multilingual seed-0 3B model appears in both sessions and is quantized twice (about 0.2–0.5 GPU-hours), which is cheaper than re-cutting the slice files. Reverse if the measured 3B GPTQ time makes 03+04 exceed about 10 h on its busier GPU.

@@ -237,6 +237,49 @@ def language_config_table(rows: pd.DataFrame, *, n_resamples: int = 2000, seed: 
     return table
 
 
+def kv_within_model_table(rows: pd.DataFrame, *, n_resamples: int = 2000, seed: int = 0,
+                          q: float = 0.05) -> pd.DataFrame:
+    """Δ accuracy of each KV policy against the full cache of the same weights, per language.
+
+    Pairs items within one model, task, weight, calibration and seed, so GPTQ seed noise (up to
+    4.9 points per language at 1.5B W4, RUN_LOG 20) cancels instead of entering the KV effect.
+    BH runs over every returned contrast. Cells whose languages differ from the full cache's
+    are skipped. `kept_share` is retained context tokens over context tokens (eviction only).
+    Descriptive: H2's confirmatory test is the interaction family (`h2`).
+    """
+    factors = ["model", "task", "weight", "calib", "seed"]
+    plain = rows[~rows.spec.astype(bool) & (rows.kv != "evict_share")]
+    records = []
+    for key, group in plain.groupby(factors, sort=True):
+        base = group[group.kv == "full"]
+        if base.empty:
+            continue
+        for kv in sorted(set(group.kv) - {"full"}):
+            treated = group[group.kv == kv]
+            if set(treated.lang) != set(base.lang):
+                continue
+            ci = paired_frame_bootstrap(base, treated, language="lang",
+                                        n_resamples=n_resamples, seed=seed)
+            a, b = _panel(base), _panel(treated)
+            pvalues = paired_binary_pvalues(a.to_numpy().astype(int), b.to_numpy().astype(int))
+            kept = {}
+            if kv.startswith("evict") and "kept_context_tokens" in treated:
+                sums = treated.groupby("lang")[["kept_context_tokens", "context_tokens"]].sum()
+                kept = (sums.kept_context_tokens / sums.context_tokens).to_dict()
+            for i, lang in enumerate(a.columns):
+                records.append({**dict(zip(factors, key, strict=True)), "kv": kv, "lang": lang,
+                                "base": float(a[lang].mean()), "delta": float(ci.estimate[i]),
+                                "low": float(ci.low[i]), "high": float(ci.high[i]),
+                                "pvalue": float(pvalues[i]),
+                                "kept_share": float(kept.get(lang, np.nan))})
+    table = pd.DataFrame(records)
+    if table.empty:
+        return table
+    table["p_bh"] = benjamini_hochberg(table.pvalue.to_numpy())
+    table["reject"] = table.p_bh <= q
+    return table
+
+
 def attribution(rows: pd.DataFrame, lang: str, weight: str, kv: str, metric: str = "correct"):
     """Shapley contribution of weight, KV and speculation over one eight-cell sub-grid."""
     players = {"W": ("weight", weight, "fp16"), "K": ("kv", kv, "full"), "S": ("spec", True, False)}
