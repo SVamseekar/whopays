@@ -1,10 +1,11 @@
 # %% [markdown]
-# # 04 · Audit grid, one slice
+# # 04 · Audit grid, one or more slices
 #
 # Runs one job list from `configs/`. Each slice is sized to fit one Kaggle session and is
 # resumable. Run on Kaggle with Save & Run All, once per slice.
 #
-# **Needs a K1 pass and the committed preregistration.** Set `SLICE`, then run.
+# **Needs a K1 pass and the committed preregistration.** Set `SLICES`, then run. Slices may be
+# combined when logged rates show they fit one session together; run IDs do not change.
 # **Send back:** the status counts. Results reach the results dataset on their own.
 
 # %%
@@ -16,11 +17,11 @@ from whopays.env import results_root, source_root
 from whopays.gates import require_k1
 from whopays.parallel import run_parallel
 
-SLICE = 2
+SLICES = (3, 4)
 require_k1(results_root())
 CONFIGS = source_root() / "configs"
-JOBS = load_jobs(CONFIGS / f"audit_slice_{SLICE:02d}.yaml")
-if SLICE == 0:  # exploratory retention-matched eviction cell (seventh amendment)
+JOBS = [job for s in SLICES for job in load_jobs(CONFIGS / f"audit_slice_{s:02d}.yaml")]
+if 0 in SLICES:  # exploratory retention-matched eviction cell (seventh amendment)
     JOBS += load_jobs(CONFIGS / "exploratory_evict_share.yaml")
 run_parallel(JOBS, check=False)  # one worker per T4
 results = whopays.run(JOBS)  # skips finished runs, retries failures, gives the status table
