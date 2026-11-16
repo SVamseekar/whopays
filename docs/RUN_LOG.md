@@ -233,7 +233,7 @@ This is the timeline of every GPU run and of every check whose numbers someone m
 ### 23. 2026-11-15, Kaggle T4×2: notebook 04 audit slices 5 and 6 combined
 - Job lists: `configs/audit_slice_05.yaml` + `configs/audit_slice_06.yaml`, 81 runs, all 3B (W4 multilingual seed 0 remainder, W3 multilingual seed 0). Last audit session.
 - Projected about 8 GPU-hours; the busier GPU carries the W3 group, about 5.7 h with a 3B GPTQ time of about 1300 s. Kaggle quota left before launch: about 7.3 h (15 h 4 min minus slices 3+4).
-- Outcome: pending.
+- Outcome: complete at `5bf9e69`. 81 of 81 runs done (33 Belebele, 48 MGSM), 0 failed, 0 HF rate-limit waits, notebook reached its end, 5.86 h wall (8.15 summed GPU-hours against about 8 projected). 3B W3 GPTQ: 1987 s from model load to the end of the first run; 3B W4: 1429 s. **The audit grid is complete: 858 of 858 runs have `DONE` on HF.**
 
 ## Results dataset snapshot (2026-11-13)
 
