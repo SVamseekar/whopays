@@ -71,3 +71,10 @@ Keep it short:
 - what was updated;
 - one `efficiency-research-loop` pass result, in a line;
 - the next step: the next run via the `launch-gpu-run` skill, or a decision the user must make.
+
+## Lessons (2026-11-15/16)
+
+- `report.analysis.load_parquet` uses `Path.rglob`, which does not follow symlinked run folders: copy `items.parquet` files into an isolated root (`ValueError: no released items.parquet files found`).
+- Before any verdict, check floor and ceiling: an H2 interaction at a cell near chance (3B W3 Bengali at 26.8%) is a floor effect, not a synergy.
+- MGSM: report the cap-hit rate per cell and score with both extractors (DECISIONS 2026-11-15) before reading any MGSM delta.
+- A blinded external check (agy, Gemini 3.8 Flash) caught two overstatements in our notes; it is useful for data forensics, unreliable for novelty and bug claims (verify its numbers).
