@@ -2,6 +2,20 @@
 
 Newest first. One paragraph per decision: what was decided, why, and what would reverse it.
 
+## 2026-11-16 — Confirmatory H1–H3 on the complete audit grid (858 runs)
+
+Run once, as preregistered, with `report.analysis.audit_report` on exactly the 858 `configs/audit.yaml` runs (Belebele; primary cells: calibration none or multi, seed 0; 2,000 item resamples). Tables: `docs/figures/audit_full_{h1,h2,h3,inequality,language_config}.csv`. Data: RUN_LOG 19–23, commits `3f6f753` to `5bf9e69`, Kaggle T4, torch 2.15.0+cu132, transformers 5.19.0.
+
+**H1 (per configuration; falsified when both Spearman intervals include 0):** supported in 9 of 22 configurations, falsified in 13. Supported: eviction at 1.5B W8, W4 and 3B FP16, W4, W3 (token-premium ρ 0.51–0.94, intervals above 0), 1.5B W4 full and 4-bit cache, 3B W3 full and 4-bit cache. Falsified: every W8 and FP16 4-bit-cache configuration, and 3B W4 full. Reading: per-language losses scale with token premium where a technique removes context (eviction) or damages weights heavily (W3/W4 GPTQ), not under W8 or the KIVI-4 cache. The preregistration sets no correction across the 22 configurations; that is stated with the result.
+
+**H2 (one test per language of the weight × KV interaction, BH within each 11-language family):** supported, by 3 of 132 tests: 3B W3 × eviction in Bengali (logit +0.44, p_BH < 0.001) and Thai (+0.14, p_BH 0.006), and 1.5B W4 × 4-bit cache in Japanese (−0.085, p_BH 0.049). Under BH over all 132 tests only Bengali survives (p_BH 0.0004). The Bengali interaction is a floor effect: with W3 weights 3B Bengali is at 26.8% (chance 25%), so eviction has nothing left to remove (FP16: −9.0 points; W3: +1.5). Thai is not at floor (55.8% at W3) and eviction's cost falls from 3.3 to 0.7 points, a sub-additive overlap of the two damages. H2 is reported as supported by the preregistered rule, with the floor explanation stated beside it; the paper does not present the Bengali interaction as a synergy.
+
+**H3 (endowment below half the gap for at least three non-Latin languages):** not supported in any of 22 configurations. The endowment (token count, item length, FP16 gold log-probability) explains most of each English-versus-language gap; for example, 3B FP16 eviction in Bengali has an endowment share of 1.005. Gaps are mostly explained by what languages bring (length and baseline difficulty), not by differential treatment.
+
+**Code notes found while reading the results (no verdict changes):** `hypotheses.h1` marks support when either interval excludes 0 without checking the predicted sign; all 9 supports have the predicted sign (premium positive or accuracy negative). Bootstrap draws with undefined Spearman values are replaced by 0, which pulls intervals toward 0. Both are to be fixed with tests before the tables are regenerated for the paper; the verdicts above are checked by hand.
+
+Next: `adversarial-review` of each H1–H3 statement before it enters the WhoPays paper; the speed grid after the Kaggle quota reset.
+
 ## 2026-11-15 — Owner's decision: two papers; ParityQuant reopened as a method paper
 
 The owner reverses the 2026-11-14 stop. The project now aims at two papers. (1) WhoPays, an analysis paper: the composed per-language audit, attribution and speed channel, continuing as planned. (2) ParityQuant, a method paper that needs a novel method. The preregistered K3 result for the original allocator (additive single-block sensitivity, minimax over NLL per sentence, widths {2, 3, 4, 8}) stays NEGATIVE and is reported as such; it is not re-tested or re-labelled. Any new ParityQuant method is a new design, preregistered by a new amendment before its own evaluation, with its own confirmatory test, and the 1.5B data already seen (probe, uniform and allocator results) is disclosed as seen. First step: a wide literature search for a novel, defensible method (`researching-design-choices`), CPU only while the audit finishes. The 2026-11-14 entries remain as the record of what failed.
