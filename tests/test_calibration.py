@@ -116,3 +116,14 @@ def test_shard_path_is_pinned_to_the_revision():
                     '20231101.en/train-00003-of-00041.parquet')
     with pytest.raises(ValueError):
         cal.shard_path('en', 41)
+
+
+def test_allocation_single_language_takes_all_windows():
+    assert cal.window_allocation('te', 0, 128) == {'te': 128}
+    assert cal.window_allocation('bn', 3, 128) == {'bn': 128}
+
+
+def test_allocation_rejects_unknown_mode():
+    import pytest
+    with pytest.raises(ValueError):
+        cal.window_allocation('xx', 0, 128)

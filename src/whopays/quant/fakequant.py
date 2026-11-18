@@ -125,7 +125,7 @@ def _hessian_hook(hessians, counts, name):
 
 
 @torch.no_grad()
-def _gptq_blocks(model, bitmap, calibration, group_size):
+def _gptq_blocks(model, bitmap, calibration, group_size, timing=None):
     """Layer-by-layer GPTQ: capture the first block's inputs once, then feed each quantized
     block's outputs to the next (Frantar et al., 2023). Equivalent to recapturing every
     block's inputs from the partly quantized model, at one forward pass instead of L.
@@ -133,7 +133,20 @@ def _gptq_blocks(model, bitmap, calibration, group_size):
     Returns each layer's relative output error on its calibration inputs,
     tr(D H D^T) / tr(W H W^T) with D = W - Q and H = E[x x^T]: the GPTQ objective
     (Frantar et al., 2023, eq. 1) normalised by the layer's output energy. It is read only;
-    the quantized weights are the same with or without it."""
+    the quantized weights are the same with or without it. `timing`, if given, receives the
+    seconds spent in block forward passes and in per-layer solves (DECISIONS 2026-11-18); it
+    does not affect the weights."""
+    import time
+
+    timing = {} if timing is None else timing
+    timing.update(forward_s=0.0, solve_s=0.0)
+
+    def sync():
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+        elif device.type == "mps":
+            torch.mps.synchronize()
+
     errors: dict[str, float] = {}
     layers = linear_layers(model)
     blocks: dict[str, list[str]] = {}
@@ -162,12 +175,17 @@ def _gptq_blocks(model, bitmap, calibration, group_size):
 
             hooks = [layers[n].register_forward_pre_hook(_hessian_hook(hessians, counts, n))
                      for n in stage]
+            sync()
+            t0 = time.perf_counter()
             try:
                 for args, kwargs in inputs:
                     block(*args, **kwargs)
             finally:
                 for hook in hooks:
                     hook.remove()
+            sync()
+            timing["forward_s"] += time.perf_counter() - t0
+            t0 = time.perf_counter()
             for n in stage:
                 if not counts[n]:
                     raise ValueError(f'empty calibration activations for {n}')
@@ -179,13 +197,18 @@ def _gptq_blocks(model, bitmap, calibration, group_size):
                 errors[n] = float(((d @ h) * d).sum()) / energy if energy > 0 else 0.0
                 layers[n].weight.copy_(q)
                 del h, w, q, d
+            sync()
+            timing["solve_s"] += time.perf_counter() - t0
         if index + 1 < len(order):
+            t0 = time.perf_counter()
             outputs = []
             for args, kwargs in inputs:
                 out = block(*args, **kwargs)
                 hidden = out[0] if isinstance(out, tuple) else out
                 outputs.append(((hidden, *args[1:]), kwargs))
             inputs = outputs
+            sync()
+            timing["forward_s"] += time.perf_counter() - t0
     return errors
 
 
@@ -197,9 +220,9 @@ def apply(model, bits, method='rtn', calibration=None, group_size=128):
     if method == 'gptq' and not calibration:
         raise ValueError('GPTQ requires calibration batches')
     layers = linear_layers(model)
-    errors = None
+    errors, timing = None, {}
     if method == 'gptq':
-        errors = _gptq_blocks(model, bitmap, calibration, group_size)
+        errors = _gptq_blocks(model, bitmap, calibration, group_size, timing)
     else:
         for name, bit in bitmap.items():
             layers[name].weight.copy_(quantize(layers[name].weight, bit, group_size))
@@ -211,6 +234,7 @@ def apply(model, bits, method='rtn', calibration=None, group_size=128):
     if errors is not None:
         summary['layer_error'] = {n: round(e, 8) for n, e in errors.items()}
         summary['weights_sha256'] = weights_digest(layers, bitmap)
+        summary['gptq_timing_s'] = {k: round(v, 2) for k, v in timing.items()}
     return summary
 
 

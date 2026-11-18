@@ -165,3 +165,15 @@ def test_evict_share_is_belebele_only_and_keeps_its_budget_in_the_id():
     assert cfg.canonical()["kv_budget"] == 256
     with pytest.raises(ValidationError, match="belebele only"):
         RunConfig(**{**BASE, "task": "mgsm"}, kv="evict_share")
+
+
+def test_single_language_calibration_modes_cover_every_language():
+    from typing import get_args
+
+    from whopays.config import Calib, RunConfig
+    from whopays.languages import CODES
+    assert set(get_args(Calib)) == {"none", "multi", *CODES}
+    cfg = RunConfig(model="m", task="flores_nll", lang="te", weight="w3_gptq", calib="te")
+    other = RunConfig(model="m", task="flores_nll", lang="te", weight="w3_gptq", calib="bn")
+    assert cfg.run_id != other.run_id
+    assert cfg.model_key() != other.model_key()

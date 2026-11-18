@@ -99,7 +99,8 @@ def write_grids(out: str) -> int:
 
     specs = {"replication": grids.replication_grid(), "audit": grids.audit_grid(),
              "speed": grids.speed_grid() + grids.speed_subset(),
-             "exploratory_evict_share": grids.exploratory_evict_share_grid()}
+             "exploratory_evict_share": grids.exploratory_evict_share_grid(),
+             "pq2_controllability": grids.pq2_controllability_grid()}
     for name, jobs in specs.items():
         jobs = load_jobs(jobs)
         path = grids.write_jobs(jobs, Path(out) / f"{name}.yaml")

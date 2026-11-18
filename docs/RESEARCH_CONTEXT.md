@@ -71,6 +71,16 @@ Search arXiv for "worst-group" OR "minimax" mixed-precision quantization, and fo
   Qwen2.5 and MGSM generation, and ParityQuant.
   Corpus: docs/literature/inference-bottlenecks.md.
 
+- **18 Nov 2026 (K4 check, ParityQuant v2 lead change):** the lead is now layer-local
+  minimax over per-language GPTQ Hessians, scored with an answer-letter Fisher (A+B; DECISIONS
+  2026-11-18). Closest prior art and the distinction to keep: Fair-GPTQ (a bias regularizer on
+  token-aligned pairs, not worst-group quality), RSQ (token weights inside one Hessian), ADMM-Q
+  and REAL-Q (solvers or row groups for one input distribution), QEP/GPTAQ (cross-layer error
+  correction, orthogonal), group-robust pruning (arXiv 2608.02940; pruning, not quantization).
+  No GPTQ variant with a worst case over calibration groups was found. Not claimable on its
+  own: energy normalization of per-language Hessians, the diagonal envelope, or act-order and
+  damping changes (standard GPTQ practice). Path C (mechanism paper) stays the fallback.
+
 ## Target venues
 
 - **Audit:** ACL/EMNLP (main or Findings), or FAccT.

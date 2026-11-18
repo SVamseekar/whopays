@@ -26,7 +26,10 @@ ALLOWED_BITS = {2, 3, 4, 8}
 
 # w4_gptqmodel: real GPTQModel quantization on our calibration windows (FR-3 reference only).
 Weight = Literal["fp16", "w8_rtn", "w4_gptq", "w3_gptq", "bitmap", "prequant", "w4_gptqmodel"]
-Calib = Literal["none", "en", "multi"]
+# "multi": equal windows over the 11 languages. A language code: all windows from that language
+# ("en" is the original English-only set; the others serve the ParityQuant v2 controllability
+# gate, DECISIONS 2026-11-18). Adding codes leaves existing run IDs unchanged.
+Calib = Literal["none", "multi", "en", "de", "fr", "es", "ru", "zh", "ja", "th", "bn", "sw", "te"]
 # GPTQ calibration data (quant/calibration.py). The legacy source is dropped from the canonical
 # form, so runs made before this field existed keep their IDs.
 CalibSource = Literal["wikipedia_128x2048", "flores_dev_sentences"]
@@ -90,7 +93,7 @@ class RunConfig(BaseModel):
     @model_validator(mode="after")
     def _consistent(self) -> RunConfig:
         if self.weight in CALIBRATED and self.calib == "none":
-            raise ValueError(f"weight={self.weight} needs calib='en' or 'multi'")
+            raise ValueError(f"weight={self.weight} needs calib='multi' or a language code")
         if self.weight not in CALIBRATED and self.calib != "none":
             raise ValueError(f"weight={self.weight} takes no calibration set")
         if (self.weight == "bitmap") != (self.bitmap is not None):

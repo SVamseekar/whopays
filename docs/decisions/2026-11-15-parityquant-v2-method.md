@@ -113,3 +113,45 @@ preregistered or run yet.
 - **Second arm:** "Saturation Makes Quantization Error Additive" (arXiv 2607.12266) reports additivity at 4 bits; our v1 maps were super-additive only with 2-bit blocks. A width-capped allocator (widths {3, 4, 8}) can therefore use the measured profile; it is a new, preregistered arm, not a re-test of v1.
 - **Pilot (proposed):** 1.5B, W3, seed 0: equal mix versus ParityGPTQ (5 rounds), held-out FLORES and Belebele. About 1.5–2 T4-hours; Modal about 1.5–2 USD or a Kaggle session after the quota reset.
 - Full corpus: `docs/literature/parityquant-v2.md`.
+
+## Revision (2026-11-18): lead changed to layer-local minimax inside GPTQ
+
+**Dropped as lead:** the global λ outer loop (5–8 full GPTQ rounds with one model-wide 11-weight
+vector). Reasons: one λ for the whole model ignores the K2 finding that layers hurt languages
+differently (minimum Spearman 0.420; the 4→3 cost profiles form two clusters, en–ru 0.85 and
+bn–te 0.92, against en–te 0.59; `scripts/probe_depth.py`); and a DoReMi-style loop around
+unmodified GPTQ sits too close to DoReMi, DRPruning and Calibrating Beyond English.
+
+**Dropped as a separate arm:** the width-capped ({3, 4, 8}) NLL allocator. Both 4.0-bit v1 maps
+have no 2-bit block and still lose 4.9–9.1 calibrated Belebele points (DECISIONS 2026-11-18).
+
+**New lead (A+B), to be piloted on 0.5B before any preregistration:** per-language Hessians
+H_l captured in the single sequential GPTQ pass (`parityquant.langgptq`); per layer, λ chosen
+by a few anchored exponentiated-gradient steps on each language's relative output error,
+optionally scored with an answer-letter output Fisher (label-free); keep the iterate with the
+smallest worst-language error. Cheap variants tested beside it: energy-normalized equal mix
+(no extra solves) and one-step minimax that re-solves only layers whose worst/mean error ratio
+exceeds a threshold. The diagonal envelope (raise the pooled diagonal towards the
+per-channel maximum over languages, from the owner's external report) is tested as an option.
+Not adopted from that report without evidence: QEP drift correction, SARQC regularization,
+act-order and GainGate (each is prior art or unverified; any of them would be an ablation, not
+the contribution).
+
+**Gate before any of this reaches 1.5B (controllability):** notebook 08, `configs/
+pq2_controllability.yaml` (W3, Telugu-only and Bengali-only calibration, seeds 0–1, 88 runs,
+about 2.2 T4-hours or 1.1 h wall on T4×2, projected from logged per-run rates). Criteria fixed before running, in
+`parityquant.controllability.gate`: for a target language, every target-only seed's held-out
+FLORES NLL increase per sentence must lie below every multilingual seed (replication grid seeds
+0–2) by more than the multilingual seed spread. Logged multilingual values: Telugu 83.3–90.5
+(spread 7.2), Bengali 68.4–73.3 (spread 4.9). So Telugu passes below 76.1 and Bengali below 63.5
+nats. Worst-of-11 and calibrated Belebele are reported, not gated: one-language calibration is
+expected to hurt the others. **If neither language passes**, Hessian weighting has no headroom:
+v2 turns to levers inside GPTQ not yet touched (quantizer scale search: `rtn.parameters` uses
+weight-only min-max scales; act-order is off) or to Path C, the mechanism paper (2-bit
+compounding, the NLL-versus-accuracy split, per-language Hessian geometry).
+
+**Correction.** An earlier estimate in conversation put one 1.5B GPTQ solve at about 3 s by
+dividing the 650 s pass by the number of layers; that was not a measurement. On the M1 (CPU
+solves, float32) one 0.5B `down_proj` solve takes 1.27 s and `gate_proj` 0.29 s, and solves
+take most of a pass at small calibration size. `fakequant.apply` now logs `gptq_timing_s`
+(forward against solve seconds), so the next Kaggle GPTQ run measures the T4 split.

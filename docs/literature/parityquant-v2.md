@@ -55,3 +55,31 @@ Saved 2026-11-15 for `docs/decisions/2026-11-15-parityquant-v2-method.md`. Found
 | B | Token Tax, [arXiv 2509.05486](https://arxiv.org/abs/2509.05486); Ahia et al. EMNLP 2023 | Tokenization cost disparities only |
 
 Searches: about 41 OpenAlex queries and 15 web searches on 2026-11-15.
+
+## 2026-11-18 additions: layer-local minimax inside GPTQ (A+B) and its neighbours
+
+The lead moved from a global λ outer loop to per-layer minimax inside the GPTQ pass, scored
+with an answer-letter Fisher (DECISIONS 2026-11-18). Nearest neighbours and how A+B differs:
+
+| Grade | Work | What it does | Difference from A+B |
+| --- | --- | --- | --- |
+| B | Fair-GPTQ, [TACL 2026](https://doi.org/10.1162/tacl.a.816) | Adds a bias regularizer to GPTQ's objective, built from token-aligned stereotype/anti-stereotype pairs | Regularizes a bias gap, not worst-group quality; needs token-aligned pairs, which parallel text in different scripts does not give |
+| B | RSQ, [arXiv 2503.01820](https://arxiv.org/abs/2503.01820) | Weights tokens (attention importance) inside one Hessian | One pooled Hessian; no groups, no worst-case weights |
+| B | ADMM-Q, [arXiv 2605.11222](https://arxiv.org/abs/2605.11222) | Better solver for the layer-wise Hessian-weighted problem | Single Hessian; a solver choice, orthogonal to which Hessian |
+| B | REAL-Q, [arXiv 2609.00049](https://arxiv.org/abs/2609.00049) | Separate Hessians per row group | Row groups of the weight, not input distributions |
+| B | QEP, [NeurIPS 2025](https://doi.org/10.52202/085713-5080); GPTAQ / residual-error compensation, [ICLR 2026](https://arxiv.org/html/2604.07955v1) | Correct the target for upstream quantization error | Single input distribution; orthogonal, could be combined |
+| B | Information Boundaries for Group-Robust LLM Pruning, [arXiv 2608.02940](https://arxiv.org/abs/2608.02940) | Group-balanced calibration cuts worst-group pruning damage 21.7% (Wanda) and 31.5% (SparseGPT); one compute-matched hard-max trajectory on OLMoE ends 32.7% worse than pooled | Pruning; supports anchoring λ to uniform and warns against hard-max trajectories |
+| B | Language-Conditional Dequantization, [arXiv 2608.11786](https://arxiv.org/abs/2608.11786) | Per-language rank-2 LoRA on INT3; closes 63.5–69.1% of non-English perplexity gap but 17–28% of the GlobalMMLU gap | Post-hoc adapters and routing; its perplexity-versus-accuracy split matches ours |
+
+Checked on 2026-11-18 against the pages (abstract or body text). Corrections to claims in the
+owner's external strategy report (`docs/ParityQuant Novelty and Method Strategy.docx`):
+2608.11786 does not find the same late hotspot band across models (Qwen2.5-3B blocks 18–30,
+Llama-3.2-3B blocks 7–14); 2607.12266 measures 4-bit weight-and-activation precisions, not
+"≥ 3 bits"; 2611.11079's "+0.06 pp" is a pooled iterative-versus-single-pass contrast, not a
+GPTQ-specific one (its abstract says single-pass GPTQ and AWQ show "small mean responses at three
+bits"); 2608.02940's 32.7% is one trajectory on OLMoE. Unverified (pages unreadable): the
+GPTQ Cholesky-instability figures attributed to 2026.findings-aacl.8 and the GainGate
+framework (OpenReview NJ6JEwvZn5). Do not cite these until read.
+
+One web search (2026-11-18, "minimax layer-wise reconstruction GPTQ per-group Hessian worst-case
+calibration") found no GPTQ variant that takes a worst case over calibration groups.

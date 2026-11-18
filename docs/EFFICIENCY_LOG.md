@@ -26,6 +26,12 @@ cheaper, what was rejected and why, and what is queued. Numbers come from logged
 
 ## Passes
 
+### 2026-11-18: planning ParityQuant v2, before the controllability gate
+- Cost picture: remaining WhoPays GPU work is the speed grid (308 runs, about 25 T4-hours projected 2026-11-14). ParityQuant v2 has no logged runs. The prepared gate is 88 runs on 4 quantized 1.5B models, about 2.2 T4-hours (about 1.1 h wall on T4×2), from logged rates: GPTQ about 650 s per 1.5B model, Belebele 62–158 s per language, FLORES devtest about 7 minutes per model.
+- Candidates. Repeated work: reuse the replication grid's multilingual W3 seeds 0–2 and FP16 runs as the gate's comparison (done: same fields, so the runs pair by item without new GPU time; saves 3 models, about 1.6 T4-hours). Idle hardware: run the 0.5B v2 pilot on the M1 instead of a T4 (done; exploratory only). Cheaper measurement: gate on held-out FLORES NLL first and add Belebele only if the gate passes (rejected: Belebele is 40% of each model's time, and the owner wants calibrated accuracy beside NLL from the start). Cheaper method: drop the global outer loop (5–8 GPTQ passes per model) for a single pass with layer-local reweighting; the M1 run measures the solve overhead of K steps before any T4 cost. Statistical efficiency: pair seeds across methods (common calibration draws), so method contrasts do not pay the 5–7 nat seed spread twice; to be written into the amendment.
+- Acted: gate prepared, M1 pilot launched, `gptq_timing_s` logging added so the next GPTQ run on Kaggle measures the forward-versus-solve split on a T4 (the M1 shows solves dominate at small calibration size: `down_proj` 1.27 s per solve on CPU).
+- Next in queue: if K-step minimax costs too much in solves, solve only layers whose worst/mean error ratio exceeds a threshold (the one-step variant is already in the pilot).
+
 ### 2026-11-14: after audit slice 1, before slice 2
 - Measured (RUN_LOG 20): 5.12 h wall against about 5 projected; 1.5B GPTQ about 650 s per model, confirmed on eight models. Kaggle queue wait of about 2.7 h before the run started: the largest new delay, and outside our control.
 - Candidates unchanged from the slice 0 pass; none passes both gates at under half a day. Queue waits: launching the next slice right after ingest keeps one run queued at all times; Modal stays reserved for the notebook 05 gate.

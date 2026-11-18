@@ -197,3 +197,14 @@ def test_gptq_weights_digest_is_reproducible_and_sensitive(tiny_model_dir):
                      group_size=16)['weights_sha256'] for bits in (4, 4, 3)]
     assert digests[0] == digests[1] != digests[2]
     assert len(digests[0]) == 64
+
+
+def test_gptq_reports_forward_and_solve_time(tiny_model_dir):
+    from whopays.config import RunConfig
+    from whopays.models.loader import load
+    from whopays.quant.fakequant import apply
+    torch.manual_seed(0)
+    model = load(RunConfig(model=str(tiny_model_dir), task='belebele', lang='en'), 'cpu').model
+    batches = [{'input_ids': torch.randint(1, 200, (1, 48))} for _ in range(2)]
+    timing = apply(model, 4, method='gptq', calibration=batches, group_size=16)['gptq_timing_s']
+    assert set(timing) == {'forward_s', 'solve_s'} and all(v >= 0 for v in timing.values())

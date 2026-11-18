@@ -157,7 +157,8 @@ def test_cli_writes_loadable_grids(tmp_path):
 
     assert main(['grid', '--out', str(tmp_path)]) == 0
     assert {p.name for p in tmp_path.iterdir()} == {'replication.yaml', 'audit.yaml', 'speed.yaml',
-                                                    'exploratory_evict_share.yaml'}
+                                                    'exploratory_evict_share.yaml',
+                                                    'pq2_controllability.yaml'}
     audit = load_jobs(tmp_path / 'audit.yaml')
     assert {j.run_id for j in audit} == {j.run_id for j in load_jobs(audit_grid())}
 
@@ -189,3 +190,18 @@ def test_exploratory_evict_share_grid_is_1_5b_belebele_four_weight_levels():
     jobs = load_jobs(exploratory_evict_share_grid())
     assert {j.model for j in jobs} == {QWEN["1.5B"]} and {j.task for j in jobs} == {"belebele"}
     assert {j.kv for j in jobs} == {"evict_share"} and len(jobs) == 4 * 11
+
+
+def test_pq2_controllability_pairs_with_replication_multi_runs():
+    from whopays.config import load_jobs
+    from whopays.grids import pq2_controllability_grid, replication_grid
+    gate = load_jobs(pq2_controllability_grid())
+    assert len(gate) == 2 * 2 * 2 * 11
+    assert {(c.calib, c.seed) for c in gate} == {("te", 0), ("te", 1), ("bn", 0), ("bn", 1)}
+    assert {c.weight for c in gate} == {"w3_gptq"}
+    multi = {c for c in load_jobs(replication_grid())
+             if c.weight == "w3_gptq" and c.calib == "multi"}
+    # Same fields apart from calibration language, so the comparison is paired by item.
+    swap = {c.model_copy(update={"calib": "multi"}) for c in gate}
+    assert swap <= multi
+    assert len({c.model_key() for c in gate}) == 4

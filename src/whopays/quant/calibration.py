@@ -36,11 +36,11 @@ SEPARATOR = "\n\n"
 
 
 def window_allocation(mode: str, seed: int, n_windows: int = N_WINDOWS) -> dict[str, int]:
-    """Windows per language: all English, or equal over the 11 languages."""
-    if mode == "en":
-        return {"en": n_windows}
+    """Windows per language: all from one language (its code), or equal over the 11."""
+    if mode in CODES:
+        return {mode: n_windows}
     if mode != "multi":
-        raise ValueError("expected calibration mode 'en' or 'multi'")
+        raise ValueError("expected calibration mode 'multi' or a language code")
     langs = list(CODES)
     random.Random(f"whopays-calibration-allocation:{seed}").shuffle(langs)
     base, extra = divmod(n_windows, len(langs))

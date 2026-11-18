@@ -145,6 +145,11 @@ experiment is authorized by a passing unit test alone.
   - [x] 2026-11-14, Kaggle T4×2 at `2a7caef` (RUN_LOG 16): 1.5B evaluated, 396 runs. **K3 NEGATIVE_RESULT**: minimax beats the average objective only at 3.0 bits (+1.50 nats per sentence, CI [0.06, 2.98]) and loses at 3.5 and 4.0. Per the PRD, ParityQuant is reported as a negative result. CPU check: the additive single-block model breaks in step with the number of 2-bit blocks, which also explains the Belebele collapse (DECISIONS 2026-11-14).
   - [x] 2026-11-15, owner's decision reversed: two papers. ParityQuant reopens as a method paper needing a novel method (DECISIONS 2026-11-15). The K3 negative for the original allocator stands. Next: wide research for the new method, then a new preregistration amendment before any new evaluation.
   - [x] 2026-11-14, owner's decision: ParityQuant stops here. No width-capped rerun and no 3B evaluation. It is written up as a negative result plus the NLL-versus-accuracy caution (exploratory). All further GPU time goes to the audit (M2) and the speed grid.
+- [ ] ParityQuant v2 (DECISIONS 2026-11-18): layer-local minimax inside GPTQ (A+B).
+  - [x] CPU: `parityquant/langgptq.py` (per-language Hessians in one sequential pass, mixing, energy normalization, envelope, layer-local minimax, output Fisher), `parityquant/explore.py`, `scripts/m1_langgptq.py`; tested on the tiny model (equal mix equals pooled GPTQ).
+  - [ ] M1 0.5B diagnostics (exploratory): Hessian geometry, timing split, variants, layer-band ablation. Running.
+  - [x] CPU: controllability gate prepared: `configs/pq2_controllability.yaml` (88 runs), notebook 08, `parityquant/controllability.py`, thresholds fixed (te < 76.1, bn < 63.5 nats).
+  - [ ] Kaggle: notebook 08 after the quota reset. Then a preregistration amendment, only if the gate passes.
 - [x] ~~Optional: `parityquant/refine.py` (FR-14).~~ Dropped: K3 negative (DECISIONS 2026-11-14).
 - [x] Write the ParityQuant negative-result section (confirmatory K3, exploratory 2-bit and Belebele findings), after `adversarial-review`. Draft: `docs/preprint/PARITYQUANT_NEGATIVE.md` (2026-11-15); the Belebele gap figure from the review was corrected while drafting.
 

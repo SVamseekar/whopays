@@ -86,6 +86,20 @@ def speed_subset(models: Sequence[str] = (QWEN["3B"],)) -> list[dict]:
             for spec in (False, True)]
 
 
+def pq2_controllability_grid(models: Sequence[str] = (QWEN["1.5B"],),
+                              langs: Sequence[str] = ("te", "bn"),
+                              seeds: Sequence[int] = (0, 1)) -> list[dict]:
+    """ParityQuant v2 controllability gate (exploratory, DECISIONS 2026-11-18).
+
+    Uniform W3 GPTQ with all calibration windows from one language, on Belebele and FLORES
+    devtest, with the replication grid's fields, so the multilingual seeds 0-2 already logged
+    there are the paired comparison. It asks whether calibration weight on a language moves
+    that language's loss beyond seed spread, not whether a one-language mix is good overall.
+    """
+    return [{"model": m, "task": t, "lang": "all", "weight": "w3_gptq", "calib": c, "seed": s}
+            for m in models for c in langs for s in seeds for t in ("belebele", "flores_nll")]
+
+
 def scale_grid(models: Sequence[str] = (QWEN["7B"],)) -> list[dict]:
     """7B confirmation (exploratory): FP16 and W4 on Belebele and the first 30 MGSM items."""
     return [{"model": m, "task": t, "lang": "all", "limit": limit, **w}
